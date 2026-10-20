@@ -27,3 +27,4 @@ async def hello(interaction: discord.Interaction):
 # التشغيل الآمن للبوت
 token = os.getenv('DISCORD_TOKEN') or os.getenv('TOKEN')
 bot.run(token)
+ 
