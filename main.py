@@ -55,17 +55,6 @@ class UltimateBot(commands.Bot):
         print(f"البوت المتكامل شغال الآن باسم {self.user}")
         if not auto_azkar_loop.is_running():
             auto_azkar_loop.start()
-        
-        # الاتصال التلقائي بالروم الصوتي الرئيسي (أول آيدي أرسلته)
-        MAIN_VOICE_CHANNEL_ID = 1561476039656472697
-        channel = self.get_channel(MAIN_VOICE_CHANNEL_ID)
-        if isinstance(channel, discord.VoiceChannel):
-            try:
-                if not discord.utils.get(self.voice_clients, channel=channel):
-                    await channel.connect()
-                    print(f"✅ تم انضمام البوت بنجاح إلى الروم الصوتي الرئيسي!")
-            except Exception as e:
-                print(f"⚠️ خطأ أثناء الانضمام للروم الصوتي: {e}")
 
 bot = UltimateBot()
 
@@ -218,6 +207,32 @@ async def on_member_remove(member):
             pass
 
 # --- الأوامر ---
+
+@bot.tree.command(name="join", description="أمر يدوي لدخول البوت إلى الروم الصوتي الذي أنت فيه حالياً")
+@discord.app_commands.checks.has_permissions(administrator=True)
+async def join(interaction: discord.Interaction):
+    if not interaction.user.voice:
+        await interaction.response.send_message("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً لكي أتمكن من الدخول معك!", ephemeral=True)
+        return
+    
+    voice_channel = interaction.user.voice.channel
+    try:
+        if interaction.guild.voice_client:
+            await interaction.guild.voice_client.move_to(voice_channel)
+        else:
+            await voice_channel.connect()
+        await interaction.response.send_message(f"✅ تم انضمام البوت إلى روم: **{voice_channel.name}** بنجاح!", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ حدث خطأ أثناء محاولة الاتصال الصوتي: {e}", ephemeral=True)
+
+@bot.tree.command(name="leave", description="إخراج البوت من الروم الصوتي")
+@discord.app_commands.checks.has_permissions(administrator=True)
+async def leave(interaction: discord.Interaction):
+    if interaction.guild.voice_client:
+        await interaction.guild.voice_client.disconnect()
+        await interaction.response.send_message("👋 تم إخراج البوت من الروم الصوتي.", ephemeral=True)
+    else:
+        await interaction.response.send_message("⚠️ البوت غير متصل بأي روم صوتي أصلاً!", ephemeral=True)
 
 @bot.tree.command(name="setup_tickets", description="إرسال رسالة التكتات التفاعلية")
 @discord.app_commands.checks.has_permissions(administrator=True)
