@@ -1,35 +1,42 @@
 import os
-import discord
-from flask import Flask
 from threading import Thread
+import discord
+from discord.ext import commands
+from flask import Flask
 
 app = Flask('')
 
+
 @app.route('/')
 def home():
-    return "I am alive!"
+  return 'I am alive!'
+
 
 def run():
-    app.run(host='0.0.0.0', port=8080)
+  app.run(host='0.0.0.0', port=8080)
+
 
 def keep_alive():
-    t = Thread(target=run)
-    t.start()
+  t = Thread(target=run)
+  t.start()
+
 
 intents = discord.Intents.default()
 intents.message_content = True
-client = discord.Client(intents=intents)
 
-@client.event
+bot = commands.Bot(command_prefix='$', intents=intents)
+
+
+@bot.event
 async def on_ready():
-    print(f'We have logged in as {client.user}')
+  print(f'Logged in as {bot.user.name}')
 
-@client.event
-async def on_message(message):
-    if message.author == client.user:
-        return
-    if message.content.startswith('$hello'):
-        await message.channel.send('Hello!')
+
+@bot.command()
+async def hello(ctx):
+  await ctx.send('Hello!')
+
 
 keep_alive()
-client.run(os.environ['TOKEN'])
+
+bot.run('MTU2MjExOTkyMDQ5MjIyMDUxOA.GdYjG-.NS1Pu1Xjdv9Jv9KWbsvOBa6G7HfD5HCtlWnRa8')
