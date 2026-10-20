@@ -40,18 +40,14 @@ CREATE TABLE IF NOT EXISTS users (
 """)
 db.commit()
 
-intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
-intents.guilds = True
-intents.moderation = True
+# تفعيل كافة الصلاحيات والـ Intents بقوة مطلقة
+intents = discord.Intents.all()
 
 class UltimateBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        # تسجيل أزرار التكتات دائماً لتعمل بفعالية
         self.add_view(TicketView())
         self.add_view(CloseTicketView())
         await self.tree.sync()
@@ -71,7 +67,6 @@ AZKAR_LIST = [
     "ربنا آتنا في الدنيا حسنة وفي الآخرة حسنة وقنا عذاب النار."
 ]
 
-# --- دالة اللوقات بالأيدي المباشر ---
 def get_log_channel(guild):
     LOG_CHANNEL_ID = 1562238501678878740
     return guild.get_channel(LOG_CHANNEL_ID)
@@ -79,8 +74,7 @@ def get_log_channel(guild):
 user_message_cache = defaultdict(lambda: deque(maxlen=5))
 user_deleted_channels = defaultdict(list)
 
-# --- نظام التكتات (Views & Buttons) ---
-
+# --- نظام التكتات ---
 class CloseTicketConfirmView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -131,7 +125,7 @@ class TicketView(discord.ui.View):
         await interaction.response.send_message(f"✅ تم فتح التكت بنجاح: {ticket_channel.mention}", ephemeral=True)
 
 
-# --- أنظمة الحماية والأحداث ---
+# --- الأحداث والحماية ---
 
 @bot.event
 async def on_member_join(member):
@@ -154,88 +148,36 @@ async def on_member_join(member):
             pass
 
 @bot.event
-async def on_guild_channel_delete(channel):
-    guild = channel.guild
-    async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.channel_delete):
-        user = entry.user
-        if user.bot or user == guild.owner:
-            return
-        
-        now = datetime.now()
-        user_deleted_channels[user.id].append(now)
-        user_deleted_channels[user.id] = [t for t in user_deleted_channels[user.id] if now - t < timedelta(minutes=1)]
-        
-        if len(user_deleted_channels[user.id]) >= 3:
-            try:
-                member = guild.get_member(user.id)
-                if member:
-                    await member.timeout(timedelta(minutes=15), reason="حماية السيرفر: حذف رومات متعددة بشكل مريب.")
-                    log_channel = get_log_channel(guild)
-                    if log_channel:
-                        await log_channel.send(f"⚠️ **تم إعطاء تيم أوت (15 دقيقة) لـ {member.mention}** بسبب محاولته حذف رومات متعددة!")
-            except:
-                pass
-
-@bot.event
 async def on_message(message):
     if message.author.bot or not message.guild:
         return
-
-    user_id = message.author.id
-    content = message.content.strip()
-    if content:
-        user_message_cache[user_id].append(content)
-        if len(user_message_cache[user_id]) == 5 and all(c == content for c in user_message_cache[user_id]):
-            try:
-                member = message.guild.get_member(user_id)
-                if member and not member.guild_permissions.administrator:
-                    await member.timeout(timedelta(minutes=10), reason="حماية السيرفر: سبام وتكرار رسائل.")
-                    user_message_cache[user_id].clear()
-                    await message.channel.send(f"🔇 تم إعطاء تيم أوت لـ {message.author.mention} لمدة 10 دقائق بسبب السبام والتكرار!")
-            except:
-                pass
-
-    # نظام الـ XP والتلفيل
-    cursor.execute("SELECT xp, level FROM users WHERE user_id = ?", (user_id,))
-    result = cursor.fetchone()
-
-    if not result:
-        cursor.execute("INSERT INTO users (user_id, xp, level) VALUES (?, ?, ?)", (user_id, 10, 1))
-    else:
-        xp, level = result
-        xp += 10
-        if xp >= level * 100:
-            level += 1
-            xp = 0
-            try:
-                await message.channel.send(f"🎉 مبروك يا {message.author.mention}! لقد صعدت إلى المستوى **{level}**!")
-            except:
-                pass
-        cursor.execute("UPDATE users SET xp = ?, level = ? WHERE user_id = ?", (xp, level, user_id))
-    db.commit()
-
     await bot.process_commands(message)
 
+# الحدث المحسن الجبار لحذف الرسائل
 @bot.event
-async def on_message_delete(message):
-    if message.author.bot:
+async def on_raw_message_delete(payload):
+    guild = bot.get_guild(payload.guild_id)
+    if not guild:
         return
-    print(f"📌 [تتبع اللوق] تم رصد حذف رسالة من العضو: {message.author}")
-    for guild in bot.guilds:
-        log_channel = get_log_channel(guild)
-        if log_channel:
-            try:
-                embed = discord.Embed(title="🗑️ تم حذف رسالة", color=discord.Color.red())
-                embed.add_field(name="المستخدم", value=message.author.mention, inline=True)
-                embed.add_field(name="الروم", value=message.channel.mention, inline=True)
-                embed.add_field(name="المحتوى", value=message.content or "محتوى فارغ (صورة/مرفق)", inline=False)
-                await log_channel.send(embed=embed)
-                print("✅ [تتبع اللوق] تم إرسال لوق الحذف إلى روم اللوقات بنجاح!")
-            except Exception as e:
-                print(f"❌ [خطأ اللوق] فشل إرسال لوق الحذف: {e}")
-            break
-        else:
-            print("❌ [خطأ اللوق] لم يتم العثور على روم اللوقات بالأيدي المحدد 1562238501678878740 في هذا السيرفر!")
+    
+    log_channel = get_log_channel(guild)
+    if not log_channel:
+        print(f"❌ لم يتم العثور على روم اللوقات بالأيدي 1562238501678878740 في السيرفر: {guild.name}")
+        return
+
+    try:
+        # محاولة جلب تفاصيل الرسالة المحذوفة من الكاش أو الأرشيف
+        message = payload.cached_message
+        content = message.content if message else "رسالة غير مخزنة (أو تم حذفها مباشرة)"
+        author = message.author.mention if message else "عضو (محتوى غير متوفر بالكاش)"
+
+        embed = discord.Embed(title="🗑️ تم حذف رسالة", color=discord.Color.red())
+        embed.add_field(name="الروم", value=f"<#{payload.channel_id}>", inline=True)
+        embed.add_field(name="المحتوى / التفاصيل", value=content, inline=False)
+        await log_channel.send(embed=embed)
+        print("✅ تم إرسال لوق الحذف بنجاح عبر النظام المباشر (Raw)!")
+    except Exception as e:
+        print(f"❌ خطأ في إرسال لوق الحذف: {e}")
 
 @bot.event
 async def on_member_remove(member):
@@ -247,7 +189,7 @@ async def on_member_remove(member):
         except:
             pass
 
-# --- الأوامر المتكاملة ---
+# --- الأوامر ---
 
 @bot.tree.command(name="setup_tickets", description="إرسال رسالة التكتات التفاعلية في الروم الحالي")
 @discord.app_commands.checks.has_permissions(administrator=True)
@@ -290,20 +232,6 @@ async def streak(interaction: discord.Interaction):
     db.commit()
     await interaction.response.send_message(f"{interaction.user.mention} {msg}")
 
-@bot.tree.command(name="profile", description="عرض مستواك، نقاطك، والستريك الخاص بك")
-async def profile(interaction: discord.Interaction, member: discord.Member = None):
-    target = member or interaction.user
-    cursor.execute("SELECT streak, xp, level FROM users WHERE user_id = ?", (target.id,))
-    result = cursor.fetchone()
-    streak_val, xp_val, level_val = result if result else (0, 0, 1)
-
-    embed = discord.Embed(title=f"👤 ملف الشخصي لـ {target.name}", color=discord.Color.gold())
-    embed.set_thumbnail(url=target.display_avatar.url)
-    embed.add_field(name="🔥 الستريك", value=f"{streak_val} يوم", inline=True)
-    embed.add_field(name="⭐ المستوى", value=f"{level_val}", inline=True)
-    embed.add_field(name="✨ النقاط", value=f"{xp_val} XP", inline=True)
-    await interaction.response.send_message(embed=embed)
-
 @bot.tree.command(name="azkar", description="إرسال ذكر أو دعاء مبارك")
 async def azkar(interaction: discord.Interaction):
     chosen_zikr = random.choice(AZKAR_LIST)
@@ -311,57 +239,12 @@ async def azkar(interaction: discord.Interaction):
     embed.set_footer(text=f"بواسطة: {interaction.user.name}")
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="lock", description="قفل الروم الحالي")
-@discord.app_commands.checks.has_permissions(manage_channels=True)
-async def lock(interaction: discord.Interaction):
-    await interaction.channel.set_permissions(interaction.guild.default_role, send_messages=False)
-    await interaction.response.send_message("🔒 تم قفل الروم بنجاح.")
-
-@bot.tree.command(name="unlock", description="فتح الروم الحالي")
-@discord.app_commands.checks.has_permissions(manage_channels=True)
-async def unlock(interaction: discord.Interaction):
-    await interaction.channel.set_permissions(interaction.guild.default_role, send_messages=True)
-    await interaction.response.send_message("🔓 تم فتح الروم بنجاح.")
-
-@bot.tree.command(name="create_room", description="إنشاء روم كتابي جديد")
-@discord.app_commands.checks.has_permissions(manage_channels=True)
-async def create_room(interaction: discord.Interaction, name: str):
-    await interaction.guild.create_text_channel(name)
-    await interaction.response.send_message(f"📁 تم إنشاء الروم باسم: **{name}**")
-
-@bot.tree.command(name="delete_room", description="حذف الروم الحالي")
-@discord.app_commands.checks.has_permissions(manage_channels=True)
-async def delete_room(interaction: discord.Interaction):
-    await interaction.response.send_message("🗑️ جاري حذف الروم...")
-    await interaction.channel.delete()
-
 @bot.tree.command(name="clear", description="مسح عدد محدد من الرسائل")
 @discord.app_commands.checks.has_permissions(manage_messages=True)
 async def clear(interaction: discord.Interaction, amount: int):
     await interaction.response.defer(ephemeral=True)
     deleted = await interaction.channel.purge(limit=amount)
     await interaction.followup.send(f"🧹 تم مسح {len(deleted)} رسالة بنجاح.", ephemeral=True)
-
-@bot.tree.command(name="mute", description="إعطاء ميوت لعضو")
-@discord.app_commands.checks.has_permissions(moderate_members=True)
-async def mute(interaction: discord.Interaction, member: discord.Member, reason: str = "بدون سبب"):
-    await interaction.response.defer()
-    await member.timeout(timedelta(minutes=10), reason=reason)
-    await interaction.followup.send(f"🔇 تم اعطاء ميوت لـ {member.mention} لمدة 10 دقائق. السبب: {reason}")
-
-@bot.tree.command(name="ban", description="حظر عضو من السيرفر")
-@discord.app_commands.checks.has_permissions(ban_members=True)
-async def ban(interaction: discord.Interaction, member: discord.Member, reason: str = "بدون سبب"):
-    await interaction.response.defer()
-    await member.ban(reason=reason)
-    await interaction.followup.send(f"⚰️ تم حظر {member.mention} من السيرفر. السبب: {reason}")
-
-@bot.tree.command(name="play", description="عرض رابط الأغنية")
-async def play(interaction: discord.Interaction, url: str):
-    if interaction.user.voice is None:
-        await interaction.response.send_message("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
-        return
-    await interaction.response.send_message(f"🎵 تم استلام رابط الأغنية بواسطة {interaction.user.mention}:\n{url}")
 
 token = os.getenv('DISCORD_TOKEN') or os.getenv('TOKEN')
 bot.run(token)
