@@ -13,7 +13,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "I am alive and fully protected!"
+    return "Bot is running and fully protected!"
 
 def run():
     port = int(os.environ.get("PORT", 10000))
@@ -25,7 +25,7 @@ def keep_alive():
 
 keep_alive()
 
-# --- إعداد قاعدة البيانات ---
+# --- قاعدة البيانات ---
 db = sqlite3.connect("bot_database.db", check_same_thread=False)
 cursor = db.cursor()
 
@@ -46,18 +46,18 @@ intents.members = True
 intents.guilds = True
 intents.moderation = True
 
-class MyBot(commands.Bot):
+class UltimateBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
         await self.tree.sync()
-        print("تمت مزامنة الأوامر وأنظمة الحماية بنجاح!")
+        print("تمت مزامنة جميع الأوامر وأنظمة الحماية بنجاح!")
 
     async def on_ready(self):
-        print(f"البوت الآمن يعمل الآن باسم {self.user}")
+        print(f"البوت المتكامل شغال الآن باسم {self.user}")
 
-bot = MyBot()
+bot = UltimateBot()
 
 AZKAR_LIST = [
     "لا إله إلا الله وحدَهُ لا شريك له، له الملك وله الحمد وهو على كل شيء قدير.",
@@ -83,7 +83,7 @@ user_deleted_channels = defaultdict(list)
 async def on_member_join(member):
     log_channel = get_log_channel(member.guild)
     
-    # حماية دخول البوتات (طرد أي بوت جديد يכנס السيرفر بدون إذن)
+    # 1. حماية البوتات (طرد أي بوت جديد يدخل بدون إذن)
     if member.bot:
         try:
             await member.kick(reason="حماية السيرفر: ممنوع دخول بوتات غير مصرح بها.")
@@ -100,7 +100,7 @@ async def on_member_join(member):
 
 @bot.event
 async def on_guild_channel_delete(channel):
-    # حماية حذف الرومات (إذا حذف 3 رومات يجيها تيم أوت)
+    # 2. حماية حذف الرومات (إذا حذف 3 رومات يجيها تيم أوت)
     guild = channel.guild
     async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.channel_delete):
         user = entry.user
@@ -127,7 +127,7 @@ async def on_message(message):
     if message.author.bot or not message.guild:
         return
 
-    # نظام مكافحة السبام وتكرار الرسائل (إذا تكررت 5 مرات يجيه تيم أوت)
+    # 3. حماية السبام (إذا كرر رسالة 5 مرات يجيها تيم أوت)
     user_id = message.author.id
     content = message.content.strip()
     if content:
@@ -184,7 +184,7 @@ async def on_member_remove(member):
         embed = discord.Embed(title="📤 غادر عضو", description=f"{member.mention} خرج من السيرفر.", color=discord.Color.orange())
         await log_channel.send(embed=embed)
 
-# --- الأوامر ---
+# --- الأوامر المتكاملة ---
 
 @bot.tree.command(name="streak", description="سجل حضورك اليومي للحفاظ على الستريك 🔥")
 async def streak(interaction: discord.Interaction):
