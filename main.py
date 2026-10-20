@@ -1,49 +1,29 @@
 import os
-from threading import Thread
 import discord
 from discord.ext import commands
-from flask import Flask
-
-app = Flask('')
-
-
-@app.route('/')
-def home():
-  return 'I am alive!'
-
-
-def run():
-  app.run(host='0.0.0.0', port=8080)
-
-
-def keep_alive():
-  t = Thread(target=run)
-  t.start()
-
 
 intents = discord.Intents.default()
 intents.message_content = True
 
-bot = commands.Bot(
-    command_prefix='$',
-    intents=intents,
-)
+class MyBot(commands.Bot):
+    def __init__(self):
+        super().__init__(command_prefix='$', intents=intents)
 
+    async def setup_hook(self):
+        # مزامنة الأوامر مع ديسكورد لتظهر في القائمة
+        await self.tree.sync()
+        print(f"تم مزامنة الأوامر للبوت: {self.user}")
 
-@bot.event
-async def on_ready():
-  print(f'Logged in as {bot.user.name}')
+    async def on_ready(self):
+        print(f'تم تسجيل الدخول بنجاح باسم: {self.user}')
 
+bot = MyBot()
 
-@bot.command()
-async def hello(ctx):
-  await ctx.send('Hello!')
+# تعريف أمر سلش (Slash Command) يظهر في القائمة المنسقة بالديسكورد
+@bot.tree.command(name="hello", description="يرحب بك البوت")
+async def hello(interaction: discord.Interaction):
+    await interaction.response.send_message("مرحباً بك!")
 
-
-keep_alive()
-
-import os
-
+# التشغيل الآمن للبوت
 token = os.getenv('DISCORD_TOKEN') or os.getenv('TOKEN')
 bot.run(token)
-
