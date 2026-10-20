@@ -49,37 +49,23 @@ class UltimateBot(commands.Bot):
         self.add_view(TicketView())
         self.add_view(CloseTicketView())
         await self.tree.sync()
-        print("تمت مزامنة جميع الأوامر وأنظمة الحماية والتكتات والصوت بنجاح!")
+        print("تمت مزامنة جميع الأوامر وأنظمة الحماية والتكتات بنجاح!")
 
     async def on_ready(self):
         print(f"البوت المتكامل شغال الآن باسم {self.user}")
         if not auto_azkar_loop.is_running():
             auto_azkar_loop.start()
         
-        # الاتصال التلقائي برومات الـ AFK عبر الأيديات المحددة
-        VOICE_CHANNEL_IDS = [
-            1561476039656472697,
-            1561476115564863549,
-            1558189969376542760,
-            1558188501160435773,
-            1558188503135821964,
-            1558188516637417472,
-            1558188543585816616,
-            1558188520886116392,
-            1558223588937433118,
-            1558190031707832413
-        ]
-        
-        for ch_id in VOICE_CHANNEL_IDS:
-            channel = self.get_channel(ch_id)
-            if isinstance(channel, discord.VoiceChannel):
-                try:
-                    # إذا كان البوت يمتلك حسابات متعددة أو يدعم عدة اتصالات (أو حسب رغبتك)
-                    if not discord.utils.get(self.voice_clients, channel=channel):
-                        await channel.connect()
-                        print(f"✅ تم الانضمام بنجاح إلى الروم الصوتي: {channel.name}")
-                except Exception as e:
-                    print(f"⚠️ لم يتمكن من الانضمام للروم {ch_id}: {e}")
+        # الاتصال التلقائي بالروم الصوتي الرئيسي (أول آيدي أرسلته)
+        MAIN_VOICE_CHANNEL_ID = 1561476039656472697
+        channel = self.get_channel(MAIN_VOICE_CHANNEL_ID)
+        if isinstance(channel, discord.VoiceChannel):
+            try:
+                if not discord.utils.get(self.voice_clients, channel=channel):
+                    await channel.connect()
+                    print(f"✅ تم انضمام البوت بنجاح إلى الروم الصوتي الرئيسي!")
+            except Exception as e:
+                print(f"⚠️ خطأ أثناء الانضمام للروم الصوتي: {e}")
 
 bot = UltimateBot()
 
