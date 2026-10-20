@@ -55,7 +55,7 @@ class MyBot(commands.Bot):
         print("تمت مزامنة الأوامر وأنظمة الحماية بنجاح!")
 
     async def on_ready(self):
-        print(f"البوت الآمن يعمل الان باسم {self.user}")
+        print(f"البوت الآمن يعمل الآن باسم {self.user}")
 
 bot = MyBot()
 
@@ -68,14 +68,12 @@ AZKAR_LIST = [
     "ربنا آتنا في الدنيا حسنة وفي الآخرة حسنة وقنا عذاب النار."
 ]
 
-# دالة اللوقات
 def get_log_channel(guild):
     for channel in guild.text_channels:
         if channel.name.lower() in ["logs", "loga", "log"]:
             return channel
     return None
 
-# متغيرات لتتبع التكرار وحذف الرومات
 user_message_cache = defaultdict(lambda: deque(maxlen=5))
 user_deleted_channels = defaultdict(list)
 
@@ -85,12 +83,12 @@ user_deleted_channels = defaultdict(list)
 async def on_member_join(member):
     log_channel = get_log_channel(member.guild)
     
-    # 3. حماية دخول البوتات (طرد أي بوت جديد تلقائياً)
+    # حماية دخول البوتات (طرد أي بوت جديد يכנס السيرفر بدون إذن)
     if member.bot:
         try:
             await member.kick(reason="حماية السيرفر: ممنوع دخول بوتات غير مصرح بها.")
             if log_channel:
-                await log_channel.send(f"🚨 **تم طرد بوت مششبوه:** {member.mention} محاولة دخول غير مصرح بها.")
+                await log_channel.send(f"🚨 **تم طرد بوت مشبوه:** {member.mention} محاولة دخول غير مصرح بها.")
         except:
             pass
         return
@@ -102,7 +100,7 @@ async def on_member_join(member):
 
 @bot.event
 async def on_guild_channel_delete(channel):
-    # 2. حماية حذف الرومات (إذا حذف 3 رومات يجيه تيم أوت)
+    # حماية حذف الرومات (إذا حذف 3 رومات يجيها تيم أوت)
     guild = channel.guild
     async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.channel_delete):
         user = entry.user
@@ -111,7 +109,6 @@ async def on_guild_channel_delete(channel):
         
         now = datetime.now()
         user_deleted_channels[user.id].append(now)
-        # تنظيف العمليات القديمة (أكثر من دقيقة)
         user_deleted_channels[user.id] = [t for t in user_deleted_channels[user.id] if now - t < timedelta(minutes=1)]
         
         if len(user_deleted_channels[user.id]) >= 3:
@@ -130,12 +127,11 @@ async def on_message(message):
     if message.author.bot or not message.guild:
         return
 
-    # 1. نظام مكافحة السبام وتكرار الرسائل (5 مرات)
+    # نظام مكافحة السبام وتكرار الرسائل (إذا تكررت 5 مرات يجيه تيم أوت)
     user_id = message.author.id
     content = message.content.strip()
     if content:
         user_message_cache[user_id].append(content)
-        # إذا كرر نفس الرسالة 5 مرات متتالية
         if len(user_message_cache[user_id]) == 5 and all(c == content for c in user_message_cache[user_id]):
             try:
                 member = message.guild.get_member(user_id)
@@ -190,7 +186,7 @@ async def on_member_remove(member):
 
 # --- الأوامر ---
 
-@bot.tree.command(name="streak", description="سجل حضورك اليومي للحفاظ على الستريك وتكبيره 🔥")
+@bot.tree.command(name="streak", description="سجل حضورك اليومي للحفاظ على الستريك 🔥")
 async def streak(interaction: discord.Interaction):
     user_id = interaction.user.id
     today = datetime.now().strftime("%Y-%m-%d")
