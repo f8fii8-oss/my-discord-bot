@@ -51,8 +51,11 @@ class UltimateBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
+        # تسجيل أزرار التكتات دائماً لتعمل بفعالية
+        self.add_view(TicketView())
+        self.add_view(CloseTicketView())
         await self.tree.sync()
-        print("تمت مزامنة جميع الأوامر وأنظمة الحماية بنجاح!")
+        print("تمت مزامنة جميع الأوامر وأنظمة الحماية والتكتات بنجاح!")
 
     async def on_ready(self):
         print(f"البوت المتكامل شغال الآن باسم {self.user}")
@@ -76,13 +79,63 @@ def get_log_channel(guild):
 user_message_cache = defaultdict(lambda: deque(maxlen=5))
 user_deleted_channels = defaultdict(list)
 
+# --- نظام التكتات (Views & Buttons) ---
+
+class CloseTicketConfirmView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="تأكيد الإغلاق 🔒", style=discord.ButtonStyle.danger, custom_id="confirm_close_ticket")
+    async def confirm_close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("🗑️ جاري حذف تكت الدعم الفني خلال ثوانٍ...", ephemeral=True)
+        await interaction.channel.delete()
+
+class CloseTicketView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="إغلاق التكت 🔒", style=discord.ButtonStyle.red, custom_id="close_ticket_btn")
+    async def close_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        view = CloseTicketConfirmView()
+        await interaction.response.send_message("⚠️ هل أنت متأكد من إغلاق هذا التكت؟", view=view, ephemeral=True)
+
+class TicketView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="فتح تكت 🎫", style=discord.ButtonStyle.green, custom_id="open_ticket_btn")
+    async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        guild = interaction.guild
+        category = discord.utils.get(guild.categories, name="التكتات")
+        if not category:
+            try:
+                category = await guild.create_category("التكتات")
+            except:
+                category = None
+
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
+            guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True)
+        }
+
+        channel_name = f"ticket-{interaction.user.name}"
+        ticket_channel = await guild.create_text_channel(channel_name, category=category, overwrites=overwrites)
+
+        embed = discord.Embed(
+            title="🎫 تكت الدعم الفني",
+            description=f"مرحباً بك {interaction.user.mention}!\nيرجى كتابة مشكلتك أو استفسارك هنا، وسيقوم فريق الإدارة بالرد عليك قريباً.",
+            color=discord.Color.blue()
+        )
+        await ticket_channel.send(embed=embed, view=CloseTicketView())
+        await interaction.response.send_message(f"✅ تم فتح التكت بنجاح: {ticket_channel.mention}", ephemeral=True)
+
+
 # --- أنظمة الحماية والأحداث ---
 
 @bot.event
 async def on_member_join(member):
     log_channel = get_log_channel(member.guild)
-    
-    # حماية طرد البوتات الغريبة تلقائياً
     if member.bot:
         try:
             await member.kick(reason="حماية السيرفر: ممنوع دخول بوتات غير مصرح بها.")
@@ -93,13 +146,15 @@ async def on_member_join(member):
         return
 
     if log_channel:
-        embed = discord.Embed(title="📥 دخل عضو جديد", description=f"{member.mention} انضم إلى السيرفر منورنا!", color=discord.Color.green())
-        embed.set_thumbnail(url=member.display_avatar.url)
-        await log_channel.send(embed=embed)
+        try:
+            embed = discord.Embed(title="📥 دخل عضو جديد", description=f"{member.mention} انضم إلى السيرفر منورنا!", color=discord.Color.green())
+            embed.set_thumbnail(url=member.display_avatar.url)
+            await log_channel.send(embed=embed)
+        except:
+            pass
 
 @bot.event
 async def on_guild_channel_delete(channel):
-    # حماية حذف الرومات (إذا حذف 3 رومات يجيها تيم أوت 15 دقيقة)
     guild = channel.guild
     async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.channel_delete):
         user = entry.user
@@ -126,7 +181,6 @@ async def on_message(message):
     if message.author.bot or not message.guild:
         return
 
-    # مكافحة السبام (إذا تكررت الرسالة 5 مرات يجيه تيم أوت 10 دقائق)
     user_id = message.author.id
     content = message.content.strip()
     if content:
@@ -166,24 +220,45 @@ async def on_message(message):
 async def on_message_delete(message):
     if message.author.bot:
         return
+    print(f"📌 [تتبع اللوق] تم رصد حذف رسالة من العضو: {message.author}")
     for guild in bot.guilds:
         log_channel = get_log_channel(guild)
         if log_channel:
-            embed = discord.Embed(title="🗑️ تم حذف رسالة", color=discord.Color.red())
-            embed.add_field(name="المستخدم", value=message.author.mention, inline=True)
-            embed.add_field(name="الروم", value=message.channel.mention, inline=True)
-            embed.add_field(name="المحتوى", value=message.content or "محتوى فارغ (صورة/مرفق)", inline=False)
-            await log_channel.send(embed=embed)
+            try:
+                embed = discord.Embed(title="🗑️ تم حذف رسالة", color=discord.Color.red())
+                embed.add_field(name="المستخدم", value=message.author.mention, inline=True)
+                embed.add_field(name="الروم", value=message.channel.mention, inline=True)
+                embed.add_field(name="المحتوى", value=message.content or "محتوى فارغ (صورة/مرفق)", inline=False)
+                await log_channel.send(embed=embed)
+                print("✅ [تتبع اللوق] تم إرسال لوق الحذف إلى روم اللوقات بنجاح!")
+            except Exception as e:
+                print(f"❌ [خطأ اللوق] فشل إرسال لوق الحذف: {e}")
             break
+        else:
+            print("❌ [خطأ اللوق] لم يتم العثور على روم اللوقات بالأيدي المحدد 1562238501678878740 في هذا السيرفر!")
 
 @bot.event
 async def on_member_remove(member):
     log_channel = get_log_channel(member.guild)
     if log_channel:
-        embed = discord.Embed(title="📤 غادر عضو", description=f"{member.mention} خرج من السيرفر.", color=discord.Color.orange())
-        await log_channel.send(embed=embed)
+        try:
+            embed = discord.Embed(title="📤 غادر عضو", description=f"{member.mention} خرج من السيرفر.", color=discord.Color.orange())
+            await log_channel.send(embed=embed)
+        except:
+            pass
 
 # --- الأوامر المتكاملة ---
+
+@bot.tree.command(name="setup_tickets", description="إرسال رسالة التكتات التفاعلية في الروم الحالي")
+@discord.app_commands.checks.has_permissions(administrator=True)
+async def setup_tickets(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="🎫 نظام الدعم الفني والتكتات",
+        description="إذا كانت لديك أي مشكلة أو استفسار، اضغط على الزر أدناه لفتح تكت خاص بك مع الإدارة.",
+        color=discord.Color.blurple()
+    )
+    await interaction.channel.send(embed=embed, view=TicketView())
+    await interaction.response.send_message("✅ تم إرسال لوحة التكتات بنجاح!", ephemeral=True)
 
 @bot.tree.command(name="streak", description="سجل حضورك اليومي للحفاظ على الستريك 🔥")
 async def streak(interaction: discord.Interaction):
