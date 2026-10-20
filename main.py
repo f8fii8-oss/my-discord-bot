@@ -13,7 +13,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "Bot is running and fully protected!"
+    return "Ultimate Bot is alive and running!"
 
 def run():
     port = int(os.environ.get("PORT", 10000))
@@ -68,11 +68,10 @@ AZKAR_LIST = [
     "ربنا آتنا في الدنيا حسنة وفي الآخرة حسنة وقنا عذاب النار."
 ]
 
+# --- دالة اللوقات بالأيدي المباشر ---
 def get_log_channel(guild):
-    for channel in guild.text_channels:
-        if channel.name.lower() in ["logs", "loga", "log"]:
-            return channel
-    return None
+    LOG_CHANNEL_ID = 1562238501678878740
+    return guild.get_channel(LOG_CHANNEL_ID)
 
 user_message_cache = defaultdict(lambda: deque(maxlen=5))
 user_deleted_channels = defaultdict(list)
@@ -83,7 +82,7 @@ user_deleted_channels = defaultdict(list)
 async def on_member_join(member):
     log_channel = get_log_channel(member.guild)
     
-    # 1. حماية البوتات (طرد أي بوت جديد يدخل بدون إذن)
+    # حماية طرد البوتات الغريبة تلقائياً
     if member.bot:
         try:
             await member.kick(reason="حماية السيرفر: ممنوع دخول بوتات غير مصرح بها.")
@@ -100,7 +99,7 @@ async def on_member_join(member):
 
 @bot.event
 async def on_guild_channel_delete(channel):
-    # 2. حماية حذف الرومات (إذا حذف 3 رومات يجيها تيم أوت)
+    # حماية حذف الرومات (إذا حذف 3 رومات يجيها تيم أوت 15 دقيقة)
     guild = channel.guild
     async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.channel_delete):
         user = entry.user
@@ -127,7 +126,7 @@ async def on_message(message):
     if message.author.bot or not message.guild:
         return
 
-    # 3. حماية السبام (إذا كرر رسالة 5 مرات يجيها تيم أوت)
+    # مكافحة السبام (إذا تكررت الرسالة 5 مرات يجيه تيم أوت 10 دقائق)
     user_id = message.author.id
     content = message.content.strip()
     if content:
