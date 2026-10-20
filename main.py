@@ -42,4 +42,8 @@ async def hello(ctx):
 
 keep_alive()
 
-bot.run(os.getenv('DISCORD_TOKEN'))
+import os
+
+token = os.getenv('DISCORD_TOKEN') or os.getenv('TOKEN')
+bot.run(token)
+
