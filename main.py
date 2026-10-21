@@ -206,17 +206,9 @@ async def on_member_remove(member):
         except:
             pass
 
-# --- نظام التشغيل المحدث بالاسم والرابط (مطابق للصورة) ---
+# --- أوامر الصوت، الأغاني، والـ AFK ---
 
 FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
-YDL_OPTIONS = {
-    'format': 'bestaudio/best',
-    'noplaylist': True,
-    'quiet': True,
-    'no_warnings': True,
-    'default_search': 'ytsearch',
-    'source_address': '0.0.0.0'
-}
 
 @bot.tree.command(name="join", description="دخول البوت إلى الروم الصوتي وتثبيته كـ AFK")
 @discord.app_commands.checks.has_permissions(administrator=True)
@@ -238,11 +230,12 @@ async def join(interaction: discord.Interaction):
 
 @bot.tree.command(name="play", description="تشغيل أغنية بالاسم أو الرابط مع عرض العنوان")
 async def play(interaction: discord.Interaction, search: str):
+    await interaction.response.defer(ephemeral=False)
+
     if not interaction.user.voice:
-        await interaction.response.send_message("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
+        await interaction.followup.send("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
         return
 
-    await interaction.response.defer()
     voice_channel = interaction.user.voice.channel
 
     if not interaction.guild.voice_client:
@@ -254,14 +247,20 @@ async def play(interaction: discord.Interaction, search: str):
     voice_client = interaction.guild.voice_client
 
     try:
-        # التعامل الذكي مع الروابط المباشرة أو البحث بالاسم
         query = search if search.startswith("http") else f"ytsearch:{search}"
-        
-        with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'noplaylist': True,
+            'quiet': True,
+            'no_warnings': True,
+            'default_search': 'ytsearch'
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(query, download=False)
             if 'entries' in info:
                 if not info['entries']:
-                    await interaction.followup.send("❌ لم يتم العثور على نتائج مطابقة بحثك.")
+                    await interaction.followup.send("❌ لم يتم العثور على نتائج مطابقة لبحثك.")
                     return
                 info = info['entries'][0]
             
@@ -274,10 +273,9 @@ async def play(interaction: discord.Interaction, search: str):
         source = discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS)
         voice_client.play(source)
         
-        # الرسالة بالشكل الاحترافي المطابق للصورة تماماً
         await interaction.followup.send(f"بدء تشغيل : **{title}**\n, بواسطة : {interaction.user.mention}.")
     except Exception as e:
-        await interaction.followup.send(f"❌ حدث خطأ أثناء جلب التشغيل: تأكد من صحة الكلمة أو الرابط.")
+        await interaction.followup.send(f"❌ حدث خطأ أثناء تشغيل المقطع: تأكد من صحة الرابط أو الاسم.")
 
 @bot.tree.command(name="stop", description="إيقاف الصوت وإبقاء البوت بالروم كـ AFK")
 @discord.app_commands.checks.has_permissions(administrator=True)
