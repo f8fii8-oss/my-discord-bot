@@ -46,14 +46,12 @@ class VerifyView(discord.ui.View):
 
     @discord.ui.button(label="تحقق / Verification 🟢", style=discord.ButtonStyle.green, custom_id="verify_button_persistent")
     async def verify_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # ⚠️ ضع اسم الرول الذي تريد إعطاءه للعضو هنا بالضبط
-        ROLE_NAME = "عضو"  # يمكنك تغيير كلمة "عضو" باسم الرول لديك في السيرفر
+        ROLE_NAME = "عضو"
 
         guild = interaction.guild
         role = discord.utils.get(guild.roles, name=ROLE_NAME)
 
         if not role:
-            # إذا لم يجد الرول بالاسم، يحاول إعطائه رول verified أو ينبه الأدمن
             role = discord.utils.get(guild.roles, name="Verified")
 
         if role:
@@ -75,7 +73,7 @@ class UltimateBot(commands.Bot):
     async def setup_hook(self):
         self.add_view(TicketView())
         self.add_view(CloseTicketView())
-        self.add_view(VerifyView())  # تثبيت زر التحقق لتحديد التفاعل دائماً
+        self.add_view(VerifyView())
         await self.tree.sync()
         print("تمت مزامنة جميع الأوامر وأنظمة الصوت والتكتات والتحقق بنجاح!")
 
@@ -234,8 +232,6 @@ async def on_member_remove(member):
         except:
             pass
 
-# --- أمر التحقق الجديد ---
-
 @bot.tree.command(name="setup_verify", description="إرسال قائمة لوحة التحقق للأعضاء")
 @discord.app_commands.checks.has_permissions(administrator=True)
 async def setup_verify(interaction: discord.Interaction):
@@ -251,63 +247,7 @@ async def setup_verify(interaction: discord.Interaction):
     await interaction.channel.send(embed=embed, view=VerifyView())
     await interaction.followup.send("✅ تم إرسال لوحة التحقق في هذا الروم بنجاح!", ephemeral=True)
 
-# --- أوامر الصوت والأغاني والـ AFK ---
-
 FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
 
 @bot.tree.command(name="join", description="دخول البوت إلى الروم الصوتي وتثبيته كـ AFK")
-@discord.app_commands.checks.has_permissions(administrator=True)
-async def join(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    if not interaction.user.voice:
-        await interaction.followup.send("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
-        return
-    
-    voice_channel = interaction.user.voice.channel
-    try:
-        if interaction.guild.voice_client:
-            await interaction.guild.voice_client.move_to(voice_channel)
-        else:
-            await voice_channel.connect()
-        await interaction.followup.send(f"✅ تم الانضمام وثبات البوت في روم: **{voice_channel.name}**!", ephemeral=True)
-    except Exception as e:
-        await interaction.followup.send(f"❌ خطأ صوتي: {str(e)}", ephemeral=True)
-
-@bot.tree.command(name="play", description="تشغيل رابط صوتي مباشر (MP3 أو راديو)")
-async def play(interaction: discord.Interaction, url: str):
-    await interaction.response.defer(ephemeral=False)
-
-    if not interaction.user.voice:
-        await interaction.followup.send("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
-        return
-
-    voice_channel = interaction.user.voice.channel
-
-    if not interaction.guild.voice_client:
-        try:
-            await voice_channel.connect()
-        except:
-            pass
-
-    voice_client = interaction.guild.voice_client
-
-    try:
-        if voice_client.is_playing():
-            voice_client.stop()
-
-        source = discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS)
-        voice_client.play(source)
-        
-        await interaction.followup.send(f"بدء تشغيل : **رابط صوتي مباشر**\n, بواسطة : {interaction.user.mention}.")
-    except Exception as e:
-        await interaction.followup.send(f"❌ حدث خطأ أثناء تشغيل الرابط: تأكد أنه رابط صوتي مباشر (MP3).")
-
-@bot.tree.command(name="stop", description="إيقاف الصوت وإبقاء البوت بالروم كـ AFK")
-@discord.app_commands.checks.has_permissions(administrator=True)
-async def stop(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    if interaction.guild.voice_client and interaction.guild.voice_client.is_playing():
-        interaction.guild.voice_client.stop()
-        await interaction.followup.send("⏹️ تم إيقاف الصوت، وبقي البوت في الروم كـ AFK.", ephemeral=True)
-    else:
-        await interaction.followup.send("⚠️ لا يوجد شيء يتم تشغيله حالياً.",
+@discord.app_commands.checks.has_permissions(administrator=True
