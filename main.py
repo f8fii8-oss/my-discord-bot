@@ -166,7 +166,7 @@ async def on_member_join(member):
         try:
             await member.kick(reason="حماية السيرفر: ممنوع دخول بوتات غير مصرح بها.")
             if log_channel:
-                await log_channel.send(f"🚨 **تم طرد بوت مشبوه:** {member.mention} محاولة دخول غير مصرح بها.")
+                await log_channel.send(f"🚨 **تم طرد بوت مشبوه:** {member.mention} محاولة دخول غير مشرح بها.")
         except:
             pass
         return
@@ -251,7 +251,7 @@ async def on_member_remove(member):
         except:
             pass
 
-# --- سجلات الرومات الصوتية (دخول، خروج، ميوت، ديف، نقل) ---
+# --- سجلات الرومات الصوتية الاحترافية (مع معرفة من قام بالسحب أو الطرد) ---
 @bot.event
 async def on_voice_state_update(member, before, after):
     log_channel = get_log_channel(member.guild)
@@ -264,22 +264,42 @@ async def on_voice_state_update(member, before, after):
             embed = discord.Embed(title="🔊 دخل روم صوتي", description=f"{member.mention} انضم إلى الروم الصوتي **{after.channel.name}**", color=discord.Color.green())
             await log_channel.send(embed=embed)
         
-        # خروج من روم صوتي
+        # خروج أو طرد من روم صوتي
         elif before.channel is not None and after.channel is None:
-            embed = discord.Embed(title="🔇 خرج من روم صوتي", description=f"{member.mention} غادر الروم الصوتي **{before.channel.name}**", color=discord.Color.red())
+            await asyncio.sleep(1.0)
+            mover = None
+            try:
+                async for entry in member.guild.audit_logs(limit=3, action=discord.AuditLogAction.member_move):
+                    if entry.target.id == member.id:
+                        if abs((datetime.utcnow() - entry.created_at.replace(tzinfo=None)).total_seconds()) < 5:
+                            mover = entry.user
+                            break
+            except:
+                pass
+            
+            if mover:
+                embed = discord.Embed(title="👢 تم طرد/سحب عضو من الروم الصوتي", description=f"العضو {member.mention} تم إخراجه من روم **{before.channel.name}** بواسطة المشرف: {mover.mention}", color=discord.Color.red())
+            else:
+                embed = discord.Embed(title="🔇 خرج من روم صوتي", description=f"{member.mention} غادر الروم الصوتي **{before.channel.name}** بنفسه", color=discord.Color.orange())
             await log_channel.send(embed=embed)
             
         # انتقال بين روم روم
         elif before.channel != after.channel and before.channel is not None and after.channel is not None:
-            embed = discord.Embed(title="🔀 انتقل بين الرومات الصوتية", description=f"{member.mention} انتقل من **{before.channel.name}** إلى **{after.channel.name}**", color=discord.Color.blue())
-            await log_channel.send(embed=embed)
+            await asyncio.sleep(1.0)
+            mover = None
+            try:
+                async for entry in member.guild.audit_logs(limit=3, action=discord.AuditLogAction.member_move):
+                    if entry.target.id == member.id:
+                        if abs((datetime.utcnow() - entry.created_at.replace(tzinfo=None)).total_seconds()) < 5:
+                            mover = entry.user
+                            break
+            except:
+                pass
             
-        # ميوت سيرفر (Server Mute) أو كتم صوت
-        elif not before.self_mute and after.self_mute:
-            pass # كتم لنفسه
-        elif before.mute != after.mute:
-            status = "تم كتم صوته (ميوت إداري)" if after.mute else "تم إزالة الميوت الإداري عنه"
-            embed = discord.Embed(title="🎙️ تحديث الميوت الصوتي", description=f"العضو {member.mention}: {status}", color=discord.Color.orange())
+            if mover:
+                embed = discord.Embed(title="🔀 تم سحب عضو بين الرومات", description=f"العضو {member.mention} تم نقله من **{before.channel.name}** إلى **{after.channel.name}** بواسطة: {mover.mention}", color=discord.Color.blue())
+            else:
+                embed = discord.Embed(title="🔀 انتقل بين الرومات الصوتية", description=f"{member.mention} انتقل من **{before.channel.name}** إلى **{after.channel.name}**", color=discord.Color.blue())
             await log_channel.send(embed=embed)
             
     except Exception as e:
