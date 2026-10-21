@@ -35,15 +35,19 @@ async def join(interaction: discord.Interaction):
     if not interaction.user.voice:
         await interaction.response.send_message("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
         return
+    
+    # تأجيل الرد لمنع حدوث خطأ The application did not respond
+    await interaction.response.defer(ephemeral=True)
+    
     voice_channel = interaction.user.voice.channel
     try:
         if interaction.guild.voice_client:
             await interaction.guild.voice_client.move_to(voice_channel)
         else:
             await voice_channel.connect()
-        await interaction.response.send_message(f"✅ تم الانضمام إلى روم: **{voice_channel.name}** بنجاح!", ephemeral=True)
+        await interaction.followup.send(f"✅ تم الانضمام إلى روم: **{voice_channel.name}** بنجاح!")
     except Exception as e:
-        await interaction.response.send_message(f"❌ حدث خطأ: {e}", ephemeral=True)
+        await interaction.followup.send(f"❌ حدث خطأ أثناء الاتصال الصوتي: {e}")
 
 @bot.tree.command(name="leave", description="إخراج البوت من الروم الصوتي")
 @discord.app_commands.checks.has_permissions(administrator=True)
