@@ -232,35 +232,3 @@ async def on_raw_message_delete(payload):
     guild = bot.get_guild(payload.guild_id)
     if not guild:
         return
-    log_channel = get_log_channel(guild)
-    if not log_channel:
-        return
-    try:
-        message = payload.cached_message
-        content = message.content if message else "رسالة غير مخزنة"
-        embed = discord.Embed(title="🗑️ تم حذف رسالة", color=discord.Color.red())
-        embed.add_field(name="الروم", value=f"<#{payload.channel_id}>", inline=True)
-        embed.add_field(name="المحتوى", value=content, inline=False)
-        await log_channel.send(embed=embed)
-    except:
-        pass
-
-@bot.event
-async def on_member_remove(member):
-    log_channel = get_log_channel(member.guild)
-    if log_channel:
-        try:
-            embed = discord.Embed(title="📤 غادر عضو", description=f"{member.mention} خرج من السيرفر.", color=discord.Color.orange())
-            await log_channel.send(embed=embed)
-        except:
-            pass
-
-# --- أوامر الصوت ---
-
-FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
-
-@bot.tree.command(name="join", description="دخول البوت إلى الروم الصوتي وتثبيته كـ AFK")
-async def join(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    if not interaction.user.voice:
-        await interaction.followup.send("⚠️ يجب أن تكون متصلاً بروم صوتي
