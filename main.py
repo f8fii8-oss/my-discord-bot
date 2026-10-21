@@ -47,9 +47,9 @@ class UltimateBot(commands.Bot):
     async def setup_hook(self):
         self.add_view(TicketView())
         self.add_view(CloseTicketView())
-        self.add_view(VerifyView())  # مزامنة زر التحقق دائماً
+        self.add_view(VerifyView())
         await self.tree.sync()
-        print("تمت مزامنة جميع الأوامر وأنظمة الصوت والتكتات والتحقق بنجاح!")
+        print("تمت مزامنة جميع الأوامر والتحقق بنجاح!")
 
     async def on_ready(self):
         print(f"البوت المتكامل شغال الآن باسم {self.user}")
@@ -93,7 +93,6 @@ class VerifyView(discord.ui.View):
 
     @discord.ui.button(label="تحقق 🟢", style=discord.ButtonStyle.green, custom_id="verify_member_btn")
     async def verify_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # استجابة فورية للحد من مشكلة انتهاء الوقت
         await interaction.response.defer(ephemeral=True)
         
         guild = interaction.guild
@@ -124,6 +123,21 @@ async def setup_verify(interaction: discord.Interaction):
     await interaction.channel.send(embed=embed, view=VerifyView())
     await interaction.followup.send("✅ تم إرسال لوحة التحقق في هذا الروم بنجاح!", ephemeral=True)
 
+# أمر إضافي بالبادئة العادية لتجربة مضمونة وبديلة
+@bot.command(name="setup_verify")
+@commands.has_permissions(administrator=True)
+async def setup_verify_prefix(ctx):
+    embed = discord.Embed(
+        title="🔒 نظام التحقق",
+        description="مرحباً بك في السيرفر! يرجى الضغط على زر التحقق أدناه للحصول على الرول والدخول إلى باقي رومات السيرفر.\n\nنتمنى لك وقتاً ممتعاً معنا!",
+        color=discord.Color.green()
+    )
+    await ctx.send(embed=embed, view=VerifyView())
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+
 # --- نظام التكتات ---
 
 class CloseTicketConfirmView(discord.ui.View):
@@ -137,191 +151,3 @@ class CloseTicketConfirmView(discord.ui.View):
 
 class CloseTicketView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(label="إغلاق التكت 🔒", style=discord.ButtonStyle.red, custom_id="close_ticket_btn")
-    async def close_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
-        view = CloseTicketConfirmView()
-        await interaction.response.send_message("⚠️ هل أنت متأكد من إغلاق هذا التكت؟", view=view, ephemeral=True)
-
-class TicketView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(label="فتح تكت 🎫", style=discord.ButtonStyle.green, custom_id="open_ticket_btn")
-    async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
-        guild = interaction.guild
-        category = discord.utils.get(guild.categories, name="التكتات")
-        if not category:
-            try:
-                category = await guild.create_category("التكتات")
-            except:
-                category = None
-
-        overwrites = {
-            guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
-            guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True)
-        }
-
-        channel_name = f"ticket-{interaction.user.name}"
-        ticket_channel = await guild.create_text_channel(channel_name, category=category, overwrites=overwrites)
-
-        embed = discord.Embed(
-            title="🎫 تكت الدعم الفني",
-            description=f"مرحباً بك {interaction.user.mention}!\nيرجى كتابة مشكلتك أو استفسارك هنا، وسيقوم فريق الإدارة بالرد عليك قريباً.",
-            color=discord.Color.blue()
-        )
-        await ticket_channel.send(embed=embed, view=CloseTicketView())
-        await interaction.response.send_message(f"✅ تم فتح التكت بنجاح: {ticket_channel.mention}", ephemeral=True)
-
-# --- أحداث البوت والسجلات ---
-
-@bot.event
-async def on_member_join(member):
-    log_channel = get_log_channel(member.guild)
-    if member.bot:
-        try:
-            await member.kick(reason="حماية السيرفر: ممنوع دخول بوتات غير مصرح بها.")
-            if log_channel:
-                await log_channel.send(f"🚨 **تم طرد بوت مشبوه:** {member.mention} محاولة دخول غير مصرح بها.")
-        except:
-            pass
-        return
-
-    if log_channel:
-        try:
-            embed = discord.Embed(title="📥 دخل عضو جديد", description=f"{member.mention} انضم إلى السيرفر منورنا!", color=discord.Color.green())
-            embed.set_thumbnail(url=member.display_avatar.url)
-            await log_channel.send(embed=embed)
-        except:
-            pass
-
-@bot.event
-async def on_message(message):
-    if message.author.bot or not message.guild:
-        return
-    user_id = message.author.id
-    cursor.execute("SELECT xp, level FROM users WHERE user_id = ?", (user_id,))
-    result = cursor.fetchone()
-
-    if not result:
-        cursor.execute("INSERT INTO users (user_id, xp, level) VALUES (?, ?, ?)", (user_id, 10, 1))
-    else:
-        xp, level = result
-        xp += 10
-        if xp >= level * 100:
-            level += 1
-            xp = 0
-            try:
-                await message.channel.send(f"🎉 مبروك يا {message.author.mention}! لقد صعدت إلى المستوى **{level}**!")
-            except:
-                pass
-        cursor.execute("UPDATE users SET xp = ?, level = ? WHERE user_id = ?", (xp, level, user_id))
-    db.commit()
-    await bot.process_commands(message)
-
-@bot.event
-async def on_raw_message_delete(payload):
-    guild = bot.get_guild(payload.guild_id)
-    if not guild:
-        return
-    log_channel = get_log_channel(guild)
-    if not log_channel:
-        return
-    try:
-        message = payload.cached_message
-        content = message.content if message else "رسالة غير مخزنة"
-        embed = discord.Embed(title="🗑️ تم حذف رسالة", color=discord.Color.red())
-        embed.add_field(name="الروم", value=f"<#{payload.channel_id}>", inline=True)
-        embed.add_field(name="المحتوى", value=content, inline=False)
-        await log_channel.send(embed=embed)
-    except:
-        pass
-
-@bot.event
-async def on_member_remove(member):
-    log_channel = get_log_channel(member.guild)
-    if log_channel:
-        try:
-            embed = discord.Embed(title="📤 غادر عضو", description=f"{member.mention} خرج من السيرفر.", color=discord.Color.orange())
-            await log_channel.send(embed=embed)
-        except:
-            pass
-
-# --- أوامر الصوت ---
-
-FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
-
-@bot.tree.command(name="join", description="دخول البوت إلى الروم الصوتي وتثبيته كـ AFK")
-@discord.app_commands.checks.has_permissions(administrator=True)
-async def join(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    if not interaction.user.voice:
-        await interaction.followup.send("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
-        return
-    
-    voice_channel = interaction.user.voice.channel
-    try:
-        if interaction.guild.voice_client:
-            await interaction.guild.voice_client.move_to(voice_channel)
-        else:
-            await voice_channel.connect(reconnect=True)
-        await interaction.followup.send(f"✅ تم الانضمام وثبات البوت في روم: **{voice_channel.name}**!", ephemeral=True)
-    except Exception as e:
-        await interaction.followup.send(f"❌ خطأ صوتي: {str(e)}", ephemeral=True)
-
-@bot.tree.command(name="play", description="تشغيل رابط صوتي مباشر (MP3 أو راديو)")
-async def play(interaction: discord.Interaction, url: str):
-    await interaction.response.defer(ephemeral=False)
-
-    if not interaction.user.voice:
-        await interaction.followup.send("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
-        return
-
-    voice_channel = interaction.user.voice.channel
-
-    if not interaction.guild.voice_client:
-        try:
-            await voice_channel.connect(reconnect=True)
-        except:
-            pass
-
-    voice_client = interaction.guild.voice_client
-
-    try:
-        if voice_client.is_playing():
-            voice_client.stop()
-
-        source = discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS)
-        voice_client.play(source)
-        
-        await interaction.followup.send(f"بدء تشغيل : **رابط صوتي مباشر**\n, بواسطة : {interaction.user.mention}.")
-    except Exception as e:
-        await interaction.followup.send(f"❌ حدث خطأ أثناء تشغيل الرابط: تأكد أنه رابط صوتي مباشر (MP3).")
-
-@bot.tree.command(name="stop", description="إيقاف الصوت وإبقاء البوت بالروم كـ AFK")
-@discord.app_commands.checks.has_permissions(administrator=True)
-async def stop(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    if interaction.guild.voice_client and interaction.guild.voice_client.is_playing():
-        interaction.guild.voice_client.stop()
-        await interaction.followup.send("⏹️ تم إيقاف الصوت، وبقي البوت في الروم كـ AFK.", ephemeral=True)
-    else:
-        await interaction.followup.send("⚠️ لا يوجد شيء يتم تشغيله حالياً.", ephemeral=True)
-
-@bot.tree.command(name="leave", description="إخراج البوت من الروم الصوتي")
-@discord.app_commands.checks.has_permissions(administrator=True)
-async def leave(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    if interaction.guild.voice_client:
-        await interaction.guild.voice_client.disconnect()
-        await interaction.followup.send("👋 تم إخراج البوت من الروم الصوتي.", ephemeral=True)
-    else:
-        await interaction.followup.send("⚠️ البوت غير متصل بأي روم صوتي!", ephemeral=True)
-
-# --- الأوامر التفاعلية والستريك ---
-
-@bot.tree.command(name="setup_tickets", description="إرسال لوحة التكتات")
-@discord.app_commands.checks.has_permissions(administrator=True)
-async def setup_tickets(interaction: discord.
