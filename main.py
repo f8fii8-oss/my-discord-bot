@@ -38,9 +38,13 @@ CREATE TABLE IF NOT EXISTS users (
 """)
 db.commit()
 
-intents = discord.Intents.all()
+# --- تفعيل صلاحيات الذاكرة والرسائل والتدقيق بالكامل ---
+intents = discord.Intents.default()
 intents.message_content = True
+intents.guilds = True
 intents.members = True
+intents.messages = True
+intents.moderation = True
 
 class UltimateBot(commands.Bot):
     def __init__(self):
@@ -161,7 +165,7 @@ async def on_member_join(member):
         try:
             await member.kick(reason="حماية السيرفر: ممنوع دخول بوتات غير مصرح بها.")
             if log_channel:
-                await log_channel.send(f"🚨 **تم طرد بوت مشبوه:** {member.mention} محاولة دخول غير مصرح بها.")
+                await log_channel.send(f"🚨 **تم طرد بوت مشبوه:** {member.mention} محاولة دخول غير مشرح بها.")
         except:
             pass
         return
@@ -208,12 +212,23 @@ async def on_raw_message_delete(payload):
         return
     try:
         message = payload.cached_message
-        author_str = f"{message.author.mention} (`{message.author}`)" if message and message.author else "غير معروف (رسالة غير مخزنة)"
-        content = message.content if message and message.content else "محتوى غير مخزن أو صورة/تفاعل"
+        author_str = f"{message.author.mention} (`{message.author}`)" if message and message.author else "عضو غير معروف (رسالة قديمة)"
+        content = message.content if message and message.content else "محتوى غير مخزن (صورة أو تفاعل)"
         
+        # محاولة معرفة من قام بحذف الرسالة عبر سجلات السيرفر (Audit Logs)
+        deleter_str = "غير معروف (حذف ذاتي أو الصلاحية غير متاحه)"
+        try:
+            async for entry in guild.audit_logs(limit=3, action=discord.AuditLogAction.message_delete):
+                if entry.target and message and entry.target.id == message.author.id:
+                    deleter_str = f"{entry.user.mention} (`{entry.user}`)"
+                    break
+        except:
+            pass
+
         embed = discord.Embed(title="🗑️ تم حذف رسالة", color=discord.Color.red())
         embed.add_field(name="📌 الروم المحذوف منها", value=f"<#{payload.channel_id}>", inline=False)
         embed.add_field(name="👤 صاحب الرسالة", value=author_str, inline=False)
+        embed.add_field(name="🛠️ من قام بالحذف", value=deleter_str, inline=False)
         embed.add_field(name="💬 محتوى الرسالة", value=content, inline=False)
         embed.set_footer(text=f"معرف الرسالة: {payload.message_id}")
         
