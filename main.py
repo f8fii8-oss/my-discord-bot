@@ -4,6 +4,7 @@ from threading import Thread
 import os
 import random
 import sqlite3
+import asyncio
 from datetime import datetime, timedelta
 import discord
 from discord.ext import commands, tasks
@@ -38,7 +39,6 @@ CREATE TABLE IF NOT EXISTS users (
 """)
 db.commit()
 
-# --- تفعيل صلاحيات الذاكرة والرسائل والتدقيق بالكامل ---
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
@@ -215,15 +215,17 @@ async def on_raw_message_delete(payload):
         author_str = f"{message.author.mention} (`{message.author}`)" if message and message.author else "عضو غير معروف (رسالة قديمة)"
         content = message.content if message and message.content else "محتوى غير مخزن (صورة أو تفاعل)"
         
-        # محاولة معرفة من قام بحذف الرسالة عبر سجلات السيرفر (Audit Logs)
-        deleter_str = "غير معروف (حذف ذاتي أو الصلاحية غير متاحه)"
+        # الانتظار ثانية واحدة للسماح لديسكورد بتحديث سجل التدقيق (Audit Log)
+        await asyncio.sleep(1.0)
+        
+        deleter_str = "حذف رسالته بنفسه (حذف ذاتي)"
         try:
-            async for entry in guild.audit_logs(limit=3, action=discord.AuditLogAction.message_delete):
+            async for entry in guild.audit_logs(limit=5, action=discord.AuditLogAction.message_delete):
                 if entry.target and message and entry.target.id == message.author.id:
                     deleter_str = f"{entry.user.mention} (`{entry.user}`)"
                     break
         except:
-            pass
+            deleter_str = "غير معروف (صلاحية Audit Log غير مفعمة للبوت)"
 
         embed = discord.Embed(title="🗑️ تم حذف رسالة", color=discord.Color.red())
         embed.add_field(name="📌 الروم المحذوف منها", value=f"<#{payload.channel_id}>", inline=False)
