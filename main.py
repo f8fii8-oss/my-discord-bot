@@ -74,15 +74,17 @@ AZKAR_LIST = [
     "ربنا آتنا في الدنيا حسنة وفي الآخرة حسنة وقنا عذاب النار."
 ]
 
+# روم اللوقات الخاص بالتقارير فقط
 def get_log_channel(guild):
     LOG_CHANNEL_ID = 1562238501678878740
     return guild.get_channel(LOG_CHANNEL_ID)
 
+# حلقة الأذكار التلقائية في الروم الذي حددته
 @tasks.loop(hours=2)
 async def auto_azkar_loop():
-    TARGET_CHANNEL_ID = 1562238501678878740
+    AZKAR_CHANNEL_ID = 1558188541224165376
     for guild in bot.guilds:
-        channel = guild.get_channel(TARGET_CHANNEL_ID)
+        channel = guild.get_channel(AZKAR_CHANNEL_ID)
         if channel:
             try:
                 chosen_zikr = random.choice(AZKAR_LIST)
@@ -164,9 +166,9 @@ async def on_member_join(member):
     log_channel = get_log_channel(member.guild)
     if member.bot:
         try:
-            await member.kick(reason="حماية السيرفر: ممنوع دخول بوتات غير مصرح بها.")
+            await member.kick(reason="حماية السيرفر: ممنوع دخول بوتات غير مرخص بها.")
             if log_channel:
-                await log_channel.send(f"🚨 **تم طرد بوت مشبوه:** {member.mention} محاولة دخول غير مشرح بها.")
+                await log_channel.send(f"🚨 **تم طرد بوت مشبوه:** {member.mention} محاولة دخول غير مرخص بها.")
         except:
             pass
         return
@@ -202,6 +204,125 @@ async def on_message(message):
         cursor.execute("UPDATE users SET xp = ?, level = ? WHERE user_id = ?", (xp, level, user_id))
     db.commit()
     await bot.process_commands(message)
+
+@bot.event
+async def on_member_update(before, after):
+    log_channel = get_log_channel(after.guild)
+    if not log_channel:
+        return
+    
+    try:
+        if before.nick != after.nick:
+            embed = discord.Embed(title="✏️ تم تغيير اللقب (Nickname)", color=discord.Color.gold())
+            embed.add_field(name="👤 العضو", value=after.mention, inline=False)
+            embed.add_field(name="❌ اللقب القديم", value=str(before.nick or before.name), inline=True)
+            embed.add_field(name="✅ اللقب الجديد", value=str(after.nick or after.name), inline=True)
+            await log_channel.send(embed=embed)
+            
+        elif before.name != after.name:
+            embed = discord.Embed(title="✏️ تم تغيير اسم الحساب (Username)", color=discord.Color.gold())
+            embed.add_field(name="👤 العضو", value=after.mention, inline=False)
+            embed.add_field(name="❌ الاسم القديم", value=str(before.name), inline=True)
+            embed.add_field(name="✅ الاسم الجديد", value=str(after.name), inline=True)
+            await log_channel.send(embed=embed)
+
+        if before.timed_out_until != after.timed_out_until:
+            if after.timed_out_until:
+                await asyncio.sleep(1.0)
+                banner = None
+                try:
+                    async for entry in after.guild.audit_logs(limit=3, action=discord.AuditLogAction.member_update):
+                        if entry.target.id == after.id:
+                            if abs((datetime.utcnow() - entry.created_at.replace(tzinfo=None)).total_seconds()) < 5:
+                                banner = entry.user
+                                break
+                except:
+                    pass
+                
+                embed = discord.Embed(title="⏳ تم إعطاء العضو تايم أوت (Timeout)", color=discord.Color.orange())
+                embed.add_field(name="👤 العضو", value=after.mention, inline=False)
+                embed.add_field(name="🛠️ بواسطة المشرف", value=banner.mention if banner else "غير معروف", inline=False)
+                embed.add_field(name="⏰ حتى تاريخ", value=str(after.timed_out_until), inline=False)
+                await log_channel.send(embed=embed)
+    except Exception as e:
+        pass
+
+@bot.event
+async def on_member_remove(member):
+    log_channel = get_log_channel(member.guild)
+    if not log_channel:
+        return
+    
+    await asyncio.sleep(1.2)
+    kicked_by = None
+    try:
+        async for entry in member.guild.audit_logs(limit=3, action=discord.AuditLogAction.kick):
+            if entry.target.id == member.id:
+                if abs((datetime.utcnow() - entry.created_at.replace(tzinfo=None)).total_seconds()) < 10:
+                    kicked_by = entry.user
+                    break
+    except:
+        pass
+
+    try:
+        if kicked_by:
+            embed = discord.Embed(title="👢 تم طرد عضو من السيرفر (Kick)", description=f"العضو {member.mention} تم طرده بواسطة المشرف: {kicked_by.mention}", color=discord.Color.red())
+            await log_channel.send(embed=embed)
+        else:
+            embed = discord.Embed(title="📤 غادر عضو", description=f"{member.mention} خرج من السيرفر بنفسه.", color=discord.Color.orange())
+            await log_channel.send(embed=embed)
+    except:
+        pass
+
+@bot.event
+async def on_member_ban(guild, user):
+    log_channel = get_log_channel(guild)
+    if not log_channel:
+        return
+    
+    await asyncio.sleep(1.2)
+    banned_by = None
+    try:
+        async for entry in guild.audit_logs(limit=3, action=discord.AuditLogAction.ban):
+            if entry.target.id == user.id:
+                if abs((datetime.utcnow() - entry.created_at.replace(tzinfo=None)).total_seconds()) < 10:
+                    banned_by = entry.user
+                    break
+    except:
+        pass
+
+    try:
+        embed = discord.Embed(title="🔨 تم حظر عضو (Ban)", color=discord.Color.dark_red())
+        embed.add_field(name="👤 العضو المحظور", value=f"{user.mention} (`{user}`)", inline=False)
+        embed.add_field(name="🛠️ بواسطة المشرف", value=banned_by.mention if banned_by else "غير معروف", inline=False)
+        await log_channel.send(embed=embed)
+    except:
+        pass
+
+@bot.event
+async def on_member_unban(guild, user):
+    log_channel = get_log_channel(guild)
+    if not log_channel:
+        return
+    
+    await asyncio.sleep(1.2)
+    unbanned_by = None
+    try:
+        async for entry in guild.audit_logs(limit=3, action=discord.AuditLogAction.unban):
+            if entry.target.id == user.id:
+                if abs((datetime.utcnow() - entry.created_at.replace(tzinfo=None)).total_seconds()) < 10:
+                    unbanned_by = entry.user
+                    break
+    except:
+        pass
+
+    try:
+        embed = discord.Embed(title="🔓 تم فك حظر عضو (Unban)", color=discord.Color.green())
+        embed.add_field(name="👤 العضو", value=f"{user.mention} (`{user}`)", inline=False)
+        embed.add_field(name="🛠️ بواسطة المشرف", value=unbanned_by.mention if unbanned_by else "غير معروف", inline=False)
+        await log_channel.send(embed=embed)
+    except:
+        pass
 
 @bot.event
 async def on_raw_message_delete(payload):
@@ -242,55 +363,51 @@ async def on_raw_message_delete(payload):
         pass
 
 @bot.event
-async def on_member_remove(member):
-    log_channel = get_log_channel(member.guild)
-    if log_channel:
-        try:
-            embed = discord.Embed(title="📤 غادر عضو", description=f"{member.mention} خرج من السيرفر.", color=discord.Color.orange())
-            await log_channel.send(embed=embed)
-        except:
-            pass
-
-# --- سجلات الرومات الصوتية الاحترافية (مع معرفة من قام بالسحب أو الطرد) ---
-@bot.event
 async def on_voice_state_update(member, before, after):
     log_channel = get_log_channel(member.guild)
     if not log_channel:
         return
     
     try:
-        # دخول روم صوتي
         if before.channel is None and after.channel is not None:
             embed = discord.Embed(title="🔊 دخل روم صوتي", description=f"{member.mention} انضم إلى الروم الصوتي **{after.channel.name}**", color=discord.Color.green())
             await log_channel.send(embed=embed)
         
-        # خروج أو طرد من روم صوتي
         elif before.channel is not None and after.channel is None:
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(1.2)
             mover = None
             try:
-                async for entry in member.guild.audit_logs(limit=3, action=discord.AuditLogAction.member_move):
+                async for entry in member.guild.audit_logs(limit=5, action=discord.AuditLogAction.member_update):
                     if entry.target.id == member.id:
-                        if abs((datetime.utcnow() - entry.created_at.replace(tzinfo=None)).total_seconds()) < 5:
+                        if abs((datetime.utcnow() - entry.created_at.replace(tzinfo=None)).total_seconds()) < 6:
                             mover = entry.user
                             break
             except:
                 pass
             
-            if mover:
-                embed = discord.Embed(title="👢 تم طرد/سحب عضو من الروم الصوتي", description=f"العضو {member.mention} تم إخراجه من روم **{before.channel.name}** بواسطة المشرف: {mover.mention}", color=discord.Color.red())
+            if not mover:
+                try:
+                    async for entry in member.guild.audit_logs(limit=5, action=discord.AuditLogAction.member_move):
+                        if entry.target.id == member.id:
+                            if abs((datetime.utcnow() - entry.created_at.replace(tzinfo=None)).total_seconds()) < 6:
+                                mover = entry.user
+                                break
+                except:
+                    pass
+
+            if mover and mover.id != member.id:
+                embed = discord.Embed(title="👢 تم طرد عضو من الروم الصوتي", description=f"العضو {member.mention} تم إخراجه من روم **{before.channel.name}** بواسطة المشرف: {mover.mention}", color=discord.Color.red())
             else:
                 embed = discord.Embed(title="🔇 خرج من روم صوتي", description=f"{member.mention} غادر الروم الصوتي **{before.channel.name}** بنفسه", color=discord.Color.orange())
             await log_channel.send(embed=embed)
             
-        # انتقال بين روم روم
         elif before.channel != after.channel and before.channel is not None and after.channel is not None:
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(1.2)
             mover = None
             try:
-                async for entry in member.guild.audit_logs(limit=3, action=discord.AuditLogAction.member_move):
+                async for entry in member.guild.audit_logs(limit=5, action=discord.AuditLogAction.member_move):
                     if entry.target.id == member.id:
-                        if abs((datetime.utcnow() - entry.created_at.replace(tzinfo=None)).total_seconds()) < 5:
+                        if abs((datetime.utcnow() - entry.created_at.replace(tzinfo=None)).total_seconds()) < 6:
                             mover = entry.user
                             break
             except:
