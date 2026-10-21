@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+[10/05/48 11:25 ص] hh: # -*- coding: utf-8 -*-
 from flask import Flask
 from threading import Thread
 import os
@@ -7,7 +7,6 @@ import sqlite3
 from datetime import datetime, timedelta
 import discord
 from discord.ext import commands, tasks
-import yt_dlp
 
 app = Flask('')
 
@@ -119,7 +118,7 @@ class TicketView(discord.ui.View):
 
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
+[10/05/48 11:25 ص] hh: interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
             guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True)
         }
 
@@ -141,7 +140,7 @@ async def on_member_join(member):
         try:
             await member.kick(reason="حماية السيرفر: ممنوع دخول بوتات غير مصرح بها.")
             if log_channel:
-                await log_channel.send(f"🚨 **تم طرد بوت مشبوه:** {member.mention} محاولة دخول غير مصرح بها.")
+                await log_channel.send(f"🚨 تم طرد بوت مشبوه: {member.mention} محاولة دخول غير مصرح بها.")
         except:
             pass
         return
@@ -171,7 +170,7 @@ async def on_message(message):
             level += 1
             xp = 0
             try:
-                await message.channel.send(f"🎉 مبروك يا {message.author.mention}! لقد صعدت إلى المستوى **{level}**!")
+                await message.channel.send(f"🎉 مبروك يا {message.author.mention}! لقد صعدت إلى المستوى {level}!")
             except:
                 pass
         cursor.execute("UPDATE users SET xp = ?, level = ? WHERE user_id = ?", (xp, level, user_id))
@@ -206,30 +205,30 @@ async def on_member_remove(member):
         except:
             pass
 
-# --- أوامر الصوت، الأغاني، والـ AFK ---
+# --- أوامر الصوت، الأغاني، والـ AFK (مع Defer فوري) ---
 
 FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
 
 @bot.tree.command(name="join", description="دخول البوت إلى الروم الصوتي وتثبيته كـ AFK")
 @discord.app_commands.checks.has_permissions(administrator=True)
 async def join(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
     if not interaction.user.voice:
-        await interaction.response.send_message("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
+        await interaction.followup.send("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
         return
     
-    await interaction.response.send_message("🔄 جاري الاتصال بالروم...", ephemeral=True)
     voice_channel = interaction.user.voice.channel
     try:
         if interaction.guild.voice_client:
-            await interaction.guild.voice_client.move_to(voice_channel)
+[10/05/48 11:25 ص] hh: await interaction.guild.voice_client.move_to(voice_channel)
         else:
             await voice_channel.connect()
-        await interaction.edit_original_response(content=f"✅ تم الانضمام وثبات البوت في روم: **{voice_channel.name}**!")
+        await interaction.followup.send(f"✅ تم الانضمام وثبات البوت في روم: {voice_channel.name}!", ephemeral=True)
     except Exception as e:
-        await interaction.edit_original_response(content=f"❌ خطأ صوتي: {str(e)}")
+        await interaction.followup.send(f"❌ خطأ صوتي: {str(e)}", ephemeral=True)
 
-@bot.tree.command(name="play", description="تشغيل أغنية بالاسم أو الرابط مع عرض العنوان")
-async def play(interaction: discord.Interaction, search: str):
+@bot.tree.command(name="play", description="تشغيل رابط صوتي مباشر (MP3 أو راديو)")
+async def play(interaction: discord.Interaction, url: str):
     await interaction.response.defer(ephemeral=False)
 
     if not interaction.user.voice:
@@ -247,53 +246,35 @@ async def play(interaction: discord.Interaction, search: str):
     voice_client = interaction.guild.voice_client
 
     try:
-        query = search if search.startswith("http") else f"ytsearch:{search}"
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'noplaylist': True,
-            'quiet': True,
-            'no_warnings': True,
-            'default_search': 'ytsearch'
-        }
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(query, download=False)
-            if 'entries' in info:
-                if not info['entries']:
-                    await interaction.followup.send("❌ لم يتم العثور على نتائج مطابقة لبحثك.")
-                    return
-                info = info['entries'][0]
-            
-            url = info['url']
-            title = info.get('title', 'مقطع صوتي')
-
         if voice_client.is_playing():
             voice_client.stop()
 
         source = discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS)
         voice_client.play(source)
         
-        await interaction.followup.send(f"بدء تشغيل : **{title}**\n, بواسطة : {interaction.user.mention}.")
+        await interaction.followup.send(f"بدء تشغيل : **رابط صوتي مباشر**\n, بواسطة : {interaction.user.mention}.")
     except Exception as e:
-        await interaction.followup.send(f"❌ حدث خطأ أثناء تشغيل المقطع: تأكد من صحة الرابط أو الاسم.")
+        await interaction.followup.send(f"❌ حدث خطأ أثناء تشغيل الرابط: تأكد أنه رابط صوتي مباشر (MP3).")
 
 @bot.tree.command(name="stop", description="إيقاف الصوت وإبقاء البوت بالروم كـ AFK")
 @discord.app_commands.checks.has_permissions(administrator=True)
 async def stop(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
     if interaction.guild.voice_client and interaction.guild.voice_client.is_playing():
         interaction.guild.voice_client.stop()
-        await interaction.response.send_message("⏹️ تم إيقاف الصوت، وبقي البوت في الروم كـ AFK.", ephemeral=True)
+        await interaction.followup.send("⏹️ تم إيقاف الصوت، وبقي البوت في الروم كـ AFK.", ephemeral=True)
     else:
-        await interaction.response.send_message("⚠️ لا يوجد شيء يتم تشغيله حالياً.", ephemeral=True)
+        await interaction.followup.send("⚠️ لا يوجد شيء يتم تشغيله حالياً.", ephemeral=True)
 
 @bot.tree.command(name="leave", description="إخراج البوت من الروم الصوتي")
 @discord.app_commands.checks.has_permissions(administrator=True)
 async def leave(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
     if interaction.guild.voice_client:
         await interaction.guild.voice_client.disconnect()
-        await interaction.response.send_message("👋 تم إخراج البوت من الروم الصوتي.", ephemeral=True)
+        await interaction.followup.send("👋 تم إخراج البوت من الروم الصوتي.", ephemeral=True)
     else:
-        await interaction.response.send_message("⚠️ البوت غير متصل بأي روم صوتي!", ephemeral=True)
+        await interaction.followup.send("⚠️ البوت غير متصل بأي روم صوتي!", ephemeral=True)
 
 @bot.event
 async def on_voice_state_update(member, before, after):
@@ -301,17 +282,19 @@ async def on_voice_state_update(member, before, after):
         if after.channel is None:
             pass
 
-# --- باقي الأوامر الإدارية والتفاعلية ---
+# --- الأوامر التفاعلية (مع منع خطأ انتهاء الوقت) ---
 
 @bot.tree.command(name="setup_tickets", description="إرسال لوحة التكتات")
 @discord.app_commands.checks.has_permissions(administrator=True)
 async def setup_tickets(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
     embed = discord.Embed(title="🎫 نظام الدعم الفني والتكتات", description="اضغط الزر أدناه لفتح تكت خاص بك.", color=discord.Color.blurple())
     await interaction.channel.send(embed=embed, view=TicketView())
-    await interaction.response.send_message("✅ تم الإرسال!", ephemeral=True)
+    await interaction.followup.send("✅ تم إرسال لوحة التكتات بنجاح!", ephemeral=True)
 
 @bot.tree.command(name="streak", description="سجل حضورك اليومي للحفاظ على الستريك 🔥")
 async def streak(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=False)
     user_id = interaction.user.id
     today = datetime.now().strftime("%Y-%m-%d")
     cursor.execute("SELECT streak, last_streak FROM users WHERE user_id = ?", (user_id,))
@@ -319,23 +302,24 @@ async def streak(interaction: discord.Interaction):
     if not result:
         cursor.execute("INSERT INTO users (user_id, streak, last_streak) VALUES (?, 1, ?)", (user_id, today))
         db.commit()
-        await interaction.response.send_message(f"🔥 بداية ستريك جديد: **1 يوم**.")
+        await interaction.followup.send(f"🔥 بداية ستريك جديد: 1 يوم.")
         return
     current_streak, last_streak = result
     if last_streak == today:
-        await interaction.response.send_message(f"⏳ لقد سجلت ستريك اليوم مسبقاً! ستريكك: **{current_streak} أيام**", ephemeral=True)
+        await interaction.followup.send(f"⏳ لقد سجلت ستريك اليوم مسبقاً! ستريكك: **{current_streak} أيام**")
         return
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+[10/05/48 11:25 ص] hh: yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     if last_streak == yesterday:
         current_streak += 1
     else:
         current_streak = 1
     cursor.execute("UPDATE users SET streak = ?, last_streak = ? WHERE user_id = ?", (current_streak, today, user_id))
     db.commit()
-    await interaction.response.send_message(f"🔥 ستريكك الحالي: **{current_streak} أيام** متتالية!")
+    await interaction.followup.send(f"🔥 ستريكك الحالي: {current_streak} أيام متتالية!")
 
 @bot.tree.command(name="profile", description="عرض مستواك ونقاطك")
 async def profile(interaction: discord.Interaction, member: discord.Member = None):
+    await interaction.response.defer(ephemeral=False)
     target = member or interaction.user
     cursor.execute("SELECT streak, xp, level FROM users WHERE user_id = ?", (target.id,))
     result = cursor.fetchone()
@@ -344,20 +328,21 @@ async def profile(interaction: discord.Interaction, member: discord.Member = Non
     embed.add_field(name="🔥 الستريك", value=f"{streak_val} يوم", inline=True)
     embed.add_field(name="⭐ المستوى", value=f"{level_val}", inline=True)
     embed.add_field(name="✨ النقاط", value=f"{xp_val} XP", inline=True)
-    await interaction.response.send_message(embed=embed)
+    await interaction.followup.send(embed=embed)
 
 @bot.tree.command(name="azkar", description="إرسال ذكر مبارك")
 async def azkar(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=False)
     chosen_zikr = random.choice(AZKAR_LIST)
     embed = discord.Embed(title="📿 ذكر وتذكير", description=f"**{chosen_zikr}**", color=discord.Color.blue())
-    await interaction.response.send_message(embed=embed)
+    await interaction.followup.send(embed=embed)
 
 @bot.tree.command(name="clear", description="مسح الرسائل")
 @discord.app_commands.checks.has_permissions(manage_messages=True)
 async def clear(interaction: discord.Interaction, amount: int):
     await interaction.response.defer(ephemeral=True)
     deleted = await interaction.channel.purge(limit=amount)
-    await interaction.followup.send(f"🧹 تم مسح {len(deleted)} رسالة.", ephemeral=True)
+    await interaction.followup.send(f"🧹 تم مسح {len(deleted)} رسالة بنجاح.", ephemeral=True)
 
 token = os.getenv('DISCORD_TOKEN') or os.getenv('TOKEN')
 bot.run(token)
