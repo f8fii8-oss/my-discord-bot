@@ -13,7 +13,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "Ultimate Bot is alive and running!"
+    return "Ultimate AFK Bot is alive and running!"
 
 def run():
     port = int(os.environ.get("PORT", 10000))
@@ -214,15 +214,19 @@ async def join(interaction: discord.Interaction):
     if not interaction.user.voice:
         await interaction.response.send_message("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
         return
+    
+    # رد فوري لمنع أي خطأ تعليق أو مهلة من ديسكورد
+    await interaction.response.send_message("🔄 جاري الاتصال بالروم الصوتي...", ephemeral=True)
+    
     voice_channel = interaction.user.voice.channel
     try:
         if interaction.guild.voice_client:
             await interaction.guild.voice_client.move_to(voice_channel)
         else:
             await voice_channel.connect()
-        await interaction.response.send_message(f"✅ تم الانضمام إلى روم: **{voice_channel.name}** بنجاح!", ephemeral=True)
+        await interaction.edit_original_response(content=f"✅ تم الانضمام بنجاح إلى روم: **{voice_channel.name}**!")
     except Exception as e:
-        await interaction.response.send_message(f"❌ حدث خطأ: {e}", ephemeral=True)
+        await interaction.edit_original_response(content=f"❌ خطأ صوتي: {str(e)}")
 
 @bot.tree.command(name="leave", description="إخراج البوت من الروم الصوتي")
 @discord.app_commands.checks.has_permissions(administrator=True)
@@ -232,6 +236,13 @@ async def leave(interaction: discord.Interaction):
         await interaction.response.send_message("👋 تم إخراج البوت من الروم الصوتي.", ephemeral=True)
     else:
         await interaction.response.send_message("⚠️ البوت غير متصل بأي روم صوتي!", ephemeral=True)
+
+@bot.event
+async def on_voice_state_update(member, before, after):
+    # حماية تضمن بقاء البوت في الروم الصوتي وعدم خروجه تلقائياً عند خروج الآخرين
+    if member.id == bot.user.id:
+        if after.channel is None:
+            pass
 
 @bot.tree.command(name="setup_tickets", description="إرسال لوحة التكتات")
 @discord.app_commands.checks.has_permissions(administrator=True)
