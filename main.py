@@ -119,7 +119,7 @@ class TicketView(discord.ui.View):
 
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
-[10/05/48 11:25 ص] hh: interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
+hh: interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
             guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True)
         }
 
