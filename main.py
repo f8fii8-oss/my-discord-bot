@@ -7,13 +7,13 @@ import sqlite3
 from datetime import datetime, timedelta
 import discord
 from discord.ext import commands, tasks
-from collections import defaultdict, deque
+import yt_dlp
 
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "Ultimate AFK Bot is alive and running!"
+    return "Music & AFK Bot is alive and running!"
 
 def run():
     port = int(os.environ.get("PORT", 10000))
@@ -41,7 +41,7 @@ db.commit()
 
 intents = discord.Intents.all()
 
-class UltimateBot(commands.Bot):
+class UltimateMusicBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!", intents=intents)
 
@@ -49,14 +49,14 @@ class UltimateBot(commands.Bot):
         self.add_view(TicketView())
         self.add_view(CloseTicketView())
         await self.tree.sync()
-        print("تمت مزامنة جميع الأوامر وأنظمة الحماية والتكتات والصوت بنجاح!")
+        print("تمت مزامنة جميع الأوامر وأنظمة الأغاني والتكتات بنجاح!")
 
     async def on_ready(self):
-        print(f"البوت المتكامل شغال الآن باسم {self.user}")
+        print(f"بوت الأغاني والـ AFK شغال الآن باسم {self.user}")
         if not auto_azkar_loop.is_running():
             auto_azkar_loop.start()
 
-bot = UltimateBot()
+bot = UltimateMusicBot()
 
 AZKAR_LIST = [
     "لا إله إلا الله وحدَهُ لا شريك له، له الملك وله الحمد وهو على كل شيء قدير.",
@@ -206,27 +206,71 @@ async def on_member_remove(member):
         except:
             pass
 
-# --- الأوامر ---
+# --- أوامر الصوت والأغاني والـ AFK ---
 
-@bot.tree.command(name="join", description="دخول البوت إلى الروم الصوتي الذي أنت فيه")
+YDL_OPTIONS = {'format': 'bestaudio/best', 'noplaylist': 'True'}
+FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
+
+@bot.tree.command(name="join", description="دخول البوت إلى الروم الصوتي وتثبيته كـ AFK")
 @discord.app_commands.checks.has_permissions(administrator=True)
 async def join(interaction: discord.Interaction):
     if not interaction.user.voice:
         await interaction.response.send_message("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
         return
     
-    # رد فوري لمنع أي خطأ تعليق أو مهلة من ديسكورد
-    await interaction.response.send_message("🔄 جاري الاتصال بالروم الصوتي...", ephemeral=True)
-    
+    await interaction.response.send_message("🔄 جاري الاتصال وتثبيت البوت بالروم...", ephemeral=True)
     voice_channel = interaction.user.voice.channel
     try:
         if interaction.guild.voice_client:
             await interaction.guild.voice_client.move_to(voice_channel)
         else:
             await voice_channel.connect()
-        await interaction.edit_original_response(content=f"✅ تم الانضمام بنجاح إلى روم: **{voice_channel.name}**!")
+        await interaction.edit_original_response(content=f"✅ تم الانضمام وثبات البوت في روم: **{voice_channel.name}** بنجاح!")
     except Exception as e:
         await interaction.edit_original_response(content=f"❌ خطأ صوتي: {str(e)}")
+
+@bot.tree.command(name="play", description="تشغيل مقطع صوتي أو أغنية برابط يوتيوب أو اسم")
+async def play(interaction: discord.Interaction, search: str):
+    if not interaction.user.voice:
+        await interaction.response.send_message("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
+        return
+
+    await interaction.response.send_message(f"🔍 جاري البحث والتحميل: `{search}`...", ephemeral=True)
+    voice_channel = interaction.user.voice.channel
+
+    if not interaction.guild.voice_client:
+        try:
+            await voice_channel.connect()
+        except:
+            pass
+
+    voice_client = interaction.guild.voice_client
+
+    try:
+        with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
+            info = ydl.extract_info(f"ytsearch:{search}", download=False)
+            if 'entries' in info:
+                info = info['entries'][0]
+            url = info['url']
+            title = info.get('title', 'مقطع صوتي')
+
+        if voice_client.is_playing():
+            voice_client.stop()
+
+        source = discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS)
+        voice_client.play(source)
+        await interaction.edit_original_response(content=f"🎶 جاري تشغيل الآن: **{title}**")
+    except Exception as e:
+        await interaction.edit_original_response(content=f"❌ حدث خطأ أثناء تشغيل المقطع: {e}")
+
+@bot.tree.command(name="stop", description="إيقاف الأغنية المؤقتة وإبقاء البوت بالروم")
+@discord.app_commands.checks.has_permissions(administrator=True)
+async def stop(interaction: discord.Interaction):
+    if interaction.guild.voice_client and interaction.guild.voice_client.is_playing():
+        interaction.guild.voice_client.stop()
+        await interaction.response.send_message("⏹️ تم إيقاف الصوت، وبقي البوت في الروم كـ AFK.", ephemeral=True)
+    else:
+        await interaction.response.send_message("⚠️ لا يوجد شيء يتم تشغيله حالياً.", ephemeral=True)
 
 @bot.tree.command(name="leave", description="إخراج البوت من الروم الصوتي")
 @discord.app_commands.checks.has_permissions(administrator=True)
@@ -239,10 +283,11 @@ async def leave(interaction: discord.Interaction):
 
 @bot.event
 async def on_voice_state_update(member, before, after):
-    # حماية تضمن بقاء البوت في الروم الصوتي وعدم خروجه تلقائياً عند خروج الآخرين
     if member.id == bot.user.id:
         if after.channel is None:
             pass
+
+# --- باقي الأوامر (تكتات، ستريك، أذكار، رتب) ---
 
 @bot.tree.command(name="setup_tickets", description="إرسال لوحة التكتات")
 @discord.app_commands.checks.has_permissions(administrator=True)
