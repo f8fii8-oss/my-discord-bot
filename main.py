@@ -13,7 +13,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "Music & AFK Bot is alive and running!"
+    return "Ultimate Music & AFK Bot is alive and running!"
 
 def run():
     port = int(os.environ.get("PORT", 10000))
@@ -52,7 +52,7 @@ class UltimateMusicBot(commands.Bot):
         print("تمت مزامنة جميع الأوامر وأنظمة الأغاني والتكتات بنجاح!")
 
     async def on_ready(self):
-        print(f"بوت الأغاني والـ AFK شغال الآن باسم {self.user}")
+        print(f"البوت المتكامل شغال الآن باسم {self.user}")
         if not auto_azkar_loop.is_running():
             auto_azkar_loop.start()
 
@@ -206,9 +206,8 @@ async def on_member_remove(member):
         except:
             pass
 
-# --- أوامر الصوت والأغاني والـ AFK ---
+# --- أوامر الصوت، الأغاني، والـ AFK ---
 
-YDL_OPTIONS = {'format': 'bestaudio/best', 'noplaylist': 'True'}
 FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
 
 @bot.tree.command(name="join", description="دخول البوت إلى الروم الصوتي وتثبيته كـ AFK")
@@ -218,24 +217,24 @@ async def join(interaction: discord.Interaction):
         await interaction.response.send_message("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
         return
     
-    await interaction.response.send_message("🔄 جاري الاتصال وتثبيت البوت بالروم...", ephemeral=True)
+    await interaction.response.send_message("🔄 جاري الاتصال بالروم الصوتي...", ephemeral=True)
     voice_channel = interaction.user.voice.channel
     try:
         if interaction.guild.voice_client:
             await interaction.guild.voice_client.move_to(voice_channel)
         else:
             await voice_channel.connect()
-        await interaction.edit_original_response(content=f"✅ تم الانضمام وثبات البوت في روم: **{voice_channel.name}** بنجاح!")
+        await interaction.edit_original_response(content=f"✅ تم الانضمام وثبات البوت في روم: **{voice_channel.name}**!")
     except Exception as e:
         await interaction.edit_original_response(content=f"❌ خطأ صوتي: {str(e)}")
 
-@bot.tree.command(name="play", description="تشغيل مقطع صوتي أو أغنية برابط يوتيوب أو اسم")
+@bot.tree.command(name="play", description="تشغيل مقطع صوتي برابط يوتيوب أو اسم")
 async def play(interaction: discord.Interaction, search: str):
     if not interaction.user.voice:
         await interaction.response.send_message("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
         return
 
-    await interaction.response.send_message(f"🔍 جاري البحث والتحميل: `{search}`...", ephemeral=True)
+    await interaction.response.send_message(f"🔍 جاري التحميل: `{search}`...", ephemeral=True)
     voice_channel = interaction.user.voice.channel
 
     if not interaction.guild.voice_client:
@@ -247,10 +246,17 @@ async def play(interaction: discord.Interaction, search: str):
     voice_client = interaction.guild.voice_client
 
     try:
-        with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
-            info = ydl.extract_info(f"ytsearch:{search}", download=False)
+        ydl_opts = {'format': 'bestaudio/best', 'noplaylist': 'True'}
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            query = search if search.startswith("http") else f"ytsearch:{search}"
+            info = ydl.extract_info(query, download=False)
+            
             if 'entries' in info:
+                if not info['entries']:
+                    await interaction.edit_original_response(content="❌ لم يتم العثور على نتائج مطابقة.")
+                    return
                 info = info['entries'][0]
+                
             url = info['url']
             title = info.get('title', 'مقطع صوتي')
 
@@ -261,9 +267,9 @@ async def play(interaction: discord.Interaction, search: str):
         voice_client.play(source)
         await interaction.edit_original_response(content=f"🎶 جاري تشغيل الآن: **{title}**")
     except Exception as e:
-        await interaction.edit_original_response(content=f"❌ حدث خطأ أثناء تشغيل المقطع: {e}")
+        await interaction.edit_original_response(content=f"❌ حدث خطأ أثناء التشغيل: تأكد من صحة الرابط أو الاسم.")
 
-@bot.tree.command(name="stop", description="إيقاف الأغنية المؤقتة وإبقاء البوت بالروم")
+@bot.tree.command(name="stop", description="إيقاف الصوت وإبقاء البوت بالروم كـ AFK")
 @discord.app_commands.checks.has_permissions(administrator=True)
 async def stop(interaction: discord.Interaction):
     if interaction.guild.voice_client and interaction.guild.voice_client.is_playing():
@@ -287,7 +293,7 @@ async def on_voice_state_update(member, before, after):
         if after.channel is None:
             pass
 
-# --- باقي الأوامر (تكتات، ستريك، أذكار، رتب) ---
+# --- باقي الأوامر الإدارية والتفاعلية ---
 
 @bot.tree.command(name="setup_tickets", description="إرسال لوحة التكتات")
 @discord.app_commands.checks.has_permissions(administrator=True)
