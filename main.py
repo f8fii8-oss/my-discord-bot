@@ -1,5 +1,6 @@
-[10/05/48 11:25 ص] hh: # -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 from flask import Flask
+
 from threading import Thread
 import os
 import random
