@@ -45,6 +45,7 @@ intents.guilds = True
 intents.members = True
 intents.messages = True
 intents.moderation = True
+intents.voice_states = True
 
 class UltimateBot(commands.Bot):
     def __init__(self):
@@ -165,7 +166,7 @@ async def on_member_join(member):
         try:
             await member.kick(reason="حماية السيرفر: ممنوع دخول بوتات غير مصرح بها.")
             if log_channel:
-                await log_channel.send(f"🚨 **تم طرد بوت مشبوه:** {member.mention} محاولة دخول غير مشرح بها.")
+                await log_channel.send(f"🚨 **تم طرد بوت مشبوه:** {member.mention} محاولة دخول غير مصرح بها.")
         except:
             pass
         return
@@ -212,11 +213,10 @@ async def on_raw_message_delete(payload):
         return
     try:
         message = payload.cached_message
-        author_str = f"{message.author.mention} (`{message.author}`)" if message and message.author else "عضو غير معروف (رسالة قديمة)"
+        author_str = f"{message.author.mention} (`{message.author}`)" if message and message.author else "عضو غير معروف"
         content = message.content if message and message.content else "محتوى غير مخزن (صورة أو تفاعل)"
         
         await asyncio.sleep(1.2)
-        
         deleter_str = "غير معروف"
         if message and message.author:
             deleter_str = f"احتمل أن يكون {message.author.mention} (حذف ذاتي)"
@@ -224,7 +224,6 @@ async def on_raw_message_delete(payload):
         try:
             async for entry in guild.audit_logs(limit=3, action=discord.AuditLogAction.message_delete):
                 if entry.target and message and entry.target.id == message.author.id:
-                    # التحقق من أن الوقت قريب جداً لمنع التداخل
                     if abs((datetime.utcnow() - entry.created_at.replace(tzinfo=None)).total_seconds()) < 10:
                         deleter_str = f"{entry.user.mention} (`{entry.user}`)"
                         break
@@ -251,6 +250,40 @@ async def on_member_remove(member):
             await log_channel.send(embed=embed)
         except:
             pass
+
+# --- سجلات الرومات الصوتية (دخول، خروج، ميوت، ديف، نقل) ---
+@bot.event
+async def on_voice_state_update(member, before, after):
+    log_channel = get_log_channel(member.guild)
+    if not log_channel:
+        return
+    
+    try:
+        # دخول روم صوتي
+        if before.channel is None and after.channel is not None:
+            embed = discord.Embed(title="🔊 دخل روم صوتي", description=f"{member.mention} انضم إلى الروم الصوتي **{after.channel.name}**", color=discord.Color.green())
+            await log_channel.send(embed=embed)
+        
+        # خروج من روم صوتي
+        elif before.channel is not None and after.channel is None:
+            embed = discord.Embed(title="🔇 خرج من روم صوتي", description=f"{member.mention} غادر الروم الصوتي **{before.channel.name}**", color=discord.Color.red())
+            await log_channel.send(embed=embed)
+            
+        # انتقال بين روم روم
+        elif before.channel != after.channel and before.channel is not None and after.channel is not None:
+            embed = discord.Embed(title="🔀 انتقل بين الرومات الصوتية", description=f"{member.mention} انتقل من **{before.channel.name}** إلى **{after.channel.name}**", color=discord.Color.blue())
+            await log_channel.send(embed=embed)
+            
+        # ميوت سيرفر (Server Mute) أو كتم صوت
+        elif not before.self_mute and after.self_mute:
+            pass # كتم لنفسه
+        elif before.mute != after.mute:
+            status = "تم كتم صوته (ميوت إداري)" if after.mute else "تم إزالة الميوت الإداري عنه"
+            embed = discord.Embed(title="🎙️ تحديث الميوت الصوتي", description=f"العضو {member.mention}: {status}", color=discord.Color.orange())
+            await log_channel.send(embed=embed)
+            
+    except Exception as e:
+        pass
 
 FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
 
@@ -320,12 +353,6 @@ async def leave(interaction: discord.Interaction):
         await interaction.followup.send("👋 تم إخراج البوت من الروم الصوتي.", ephemeral=True)
     else:
         await interaction.followup.send("⚠️ البوت غير متصل بأي روم صوتي!", ephemeral=True)
-
-@bot.event
-async def on_voice_state_update(member, before, after):
-    if member.id == bot.user.id:
-        if after.channel is None:
-            pass
 
 @bot.tree.command(name="setup_tickets", description="إرسال لوحة التكتات")
 @discord.app_commands.checks.has_permissions(administrator=True)
