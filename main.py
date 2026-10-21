@@ -215,17 +215,21 @@ async def on_raw_message_delete(payload):
         author_str = f"{message.author.mention} (`{message.author}`)" if message and message.author else "عضو غير معروف (رسالة قديمة)"
         content = message.content if message and message.content else "محتوى غير مخزن (صورة أو تفاعل)"
         
-        # الانتظار ثانية واحدة للسماح لديسكورد بتحديث سجل التدقيق (Audit Log)
-        await asyncio.sleep(1.0)
+        await asyncio.sleep(1.2)
         
-        deleter_str = "حذف رسالته بنفسه (حذف ذاتي)"
+        deleter_str = "غير معروف"
+        if message and message.author:
+            deleter_str = f"احتمل أن يكون {message.author.mention} (حذف ذاتي)"
+
         try:
-            async for entry in guild.audit_logs(limit=5, action=discord.AuditLogAction.message_delete):
+            async for entry in guild.audit_logs(limit=3, action=discord.AuditLogAction.message_delete):
                 if entry.target and message and entry.target.id == message.author.id:
-                    deleter_str = f"{entry.user.mention} (`{entry.user}`)"
-                    break
+                    # التحقق من أن الوقت قريب جداً لمنع التداخل
+                    if abs((datetime.utcnow() - entry.created_at.replace(tzinfo=None)).total_seconds()) < 10:
+                        deleter_str = f"{entry.user.mention} (`{entry.user}`)"
+                        break
         except:
-            deleter_str = "غير معروف (صلاحية Audit Log غير مفعمة للبوت)"
+            pass
 
         embed = discord.Embed(title="🗑️ تم حذف رسالة", color=discord.Color.red())
         embed.add_field(name="📌 الروم المحذوف منها", value=f"<#{payload.channel_id}>", inline=False)
