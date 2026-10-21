@@ -205,8 +205,6 @@ async def on_member_remove(member):
         except:
             pass
 
-# --- أوامر الصوت، الأغاني، والـ AFK (مع Defer فوري) ---
-
 FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
 
 @bot.tree.command(name="join", description="دخول البوت إلى الروم الصوتي وتثبيته كـ AFK")
@@ -281,8 +279,6 @@ async def on_voice_state_update(member, before, after):
     if member.id == bot.user.id:
         if after.channel is None:
             pass
-
-# --- الأوامر التفاعلية (مع منع خطأ انتهاء الوقت) ---
 
 @bot.tree.command(name="setup_tickets", description="إرسال لوحة التكتات")
 @discord.app_commands.checks.has_permissions(administrator=True)
