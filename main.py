@@ -75,7 +75,7 @@ class UltimateBot(commands.Bot):
         self.add_view(CloseTicketView())
         self.add_view(VerifyView())
         await self.tree.sync()
-        print("تمت مزامنة جميع الأوامر وأنظمة الصوت والتكتات والتحقق بنجاح!")
+        print("تمت مزامنة جميع الأوامر بنجاح!")
 
     async def on_ready(self):
         print(f"البوت المتكامل شغال الآن باسم {self.user}")
@@ -250,4 +250,134 @@ async def setup_verify(interaction: discord.Interaction):
 FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
 
 @bot.tree.command(name="join", description="دخول البوت إلى الروم الصوتي وتثبيته كـ AFK")
-@discord.app_commands.checks.has_permissions(administrator=True
+@discord.app_commands.checks.has_permissions(administrator=True)
+async def join(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    if not interaction.user.voice:
+        await interaction.followup.send("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
+        return
+    
+    voice_channel = interaction.user.voice.channel
+    try:
+        if interaction.guild.voice_client:
+            await interaction.guild.voice_client.move_to(voice_channel)
+        else:
+            await voice_channel.connect()
+        await interaction.followup.send(f"✅ تم الانضمام وثبات البوت في روم: **{voice_channel.name}**!", ephemeral=True)
+    except Exception as e:
+        await interaction.followup.send(f"❌ خطأ صوتي: {str(e)}", ephemeral=True)
+
+@bot.tree.command(name="play", description="تشغيل رابط صوتي مباشر (MP3 أو راديو)")
+async def play(interaction: discord.Interaction, url: str):
+    await interaction.response.defer(ephemeral=False)
+
+    if not interaction.user.voice:
+        await interaction.followup.send("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
+        return
+
+    voice_channel = interaction.user.voice.channel
+
+    if not interaction.guild.voice_client:
+        try:
+            await voice_channel.connect()
+        except:
+            pass
+
+    voice_client = interaction.guild.voice_client
+
+    try:
+        if voice_client.is_playing():
+            voice_client.stop()
+
+        source = discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS)
+        voice_client.play(source)
+        
+        await interaction.followup.send(f"بدء تشغيل : **رابط صوتي مباشر**\n, بواسطة : {interaction.user.mention}.")
+    except Exception as e:
+        await interaction.followup.send("❌ حدث خطأ أثناء تشغيل الرابط: تأكد أنه رابط صوتي مباشر (MP3).")
+
+@bot.tree.command(name="stop", description="إيقاف الصوت وإبقاء البوت بالروم كـ AFK")
+@discord.app_commands.checks.has_permissions(administrator=True)
+async def stop(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    if interaction.guild.voice_client and interaction.guild.voice_client.is_playing():
+        interaction.guild.voice_client.stop()
+        await interaction.followup.send("⏹️ تم إيقاف الصوت، وبقي البوت في الروم كـ AFK.", ephemeral=True)
+    else:
+        await interaction.followup.send("⚠️ لا يوجد شيء يتم تشغيله حالياً.", ephemeral=True)
+
+@bot.tree.command(name="leave", description="إخراج البوت من الروم الصوتي")
+@discord.app_commands.checks.has_permissions(administrator=True)
+async def leave(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    if interaction.guild.voice_client:
+        await interaction.guild.voice_client.disconnect()
+        await interaction.followup.send("👋 تم إخراج البوت من الروم الصوتي.", ephemeral=True)
+    else:
+        await interaction.followup.send("⚠️ البوت غير متصل بأي روم صوتي!", ephemeral=True)
+
+@bot.event
+async def on_voice_state_update(member, before, after):
+    if member.id == bot.user.id:
+        if after.channel is None:
+            pass
+
+@bot.tree.command(name="setup_tickets", description="إرسال لوحة التكتات")
+@discord.app_commands.checks.has_permissions(administrator=True)
+async def setup_tickets(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    embed = discord.Embed(title="🎫 نظام الدعم الفني والتكتات", description="اضغط الزر أدناه لفتح تكت خاص بك.", color=discord.Color.blurple())
+    await interaction.channel.send(embed=embed, view=TicketView())
+    await interaction.followup.send("✅ تم إرسال لوحة التكتات بنجاح!", ephemeral=True)
+
+@bot.tree.command(name="streak", description="سجل حضورك اليومي للحفاظ على الستريك 🔥")
+async def streak(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=False)
+    user_id = interaction.user.id
+    today = datetime.now().strftime("%Y-%m-%d")
+    cursor.execute("SELECT streak, last_streak FROM users WHERE user_id = ?", (user_id,))
+    result = cursor.fetchone()
+    if not result:
+        cursor.execute("INSERT INTO users (user_id, streak, last_streak) VALUES (?, 1, ?)", (user_id, today))
+        db.commit()
+        await interaction.followup.send(f"🔥 بداية ستريك جديد: **1 يوم**.")
+        return
+    current_streak, last_streak = result
+    if last_streak == today:
+        await interaction.followup.send(f"⏳ لقد سجلت ستريك اليوم مسبقاً! ستريكك: **{current_streak} أيام**")
+        return
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    if last_streak == yesterday:
+        current_streak += 1
+    else:
+        current_streak = 1
+    cursor.execute("UPDATE users SET streak = ?, last_streak = ? WHERE user_id = ?", (current_streak, today, user_id))
+    db.commit()
+    await interaction.followup.send(f"🔥 ستريكك الحالي: **{current_streak} أيام** متتالية!")
+
+@bot.tree.command(name="profile", description="عرض مستواك ونقاطك")
+async def profile(interaction: discord.Interaction, member: discord.Member = None):
+    await interaction.response.defer(ephemeral=False)
+    target = member or interaction.user
+    cursor.execute("SELECT streak, xp, level FROM users WHERE user_id = ?", (target.id,))
+    result = cursor.fetchone()
+    streak_val, xp_val, level_val = result if result else (0, 0, 1)
+    embed = discord.Embed(title=f"👤 ملف {target.name}", color=discord.Color.gold())
+    embed.add_field(name="🔥 الستريك", value=f"{streak_val} يوم", inline=True)
+    embed.add_field(name="⭐ المستوى", value=f"{level_val}", inline=True)
+    embed.add_field(name="✨ النقاط", value=f"{xp_val} XP", inline=True)
+    await interaction.followup.send(embed=embed)
+
+@bot.tree.command(name="azkar", description="إرسال ذكر مبارك")
+async def azkar(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=False)
+    chosen_zikr = random.choice(AZKAR_LIST)
+    embed = discord.Embed(title="📿 ذكر وتذكير", description=f"**{chosen_zikr}**", color=discord.Color.blue())
+    await interaction.followup.send(embed=embed)
+
+@bot.tree.command(name="clear", description="مسح الرسائل")
+@discord.app_commands.checks.has_permissions(manage_messages=True)
+async def clear(interaction: discord.Interaction, amount: int):
+    await interaction.response.defer(ephemeral=True)
+    deleted = await interaction.channel.purge(limit=amount)
+    await interaction.followup
