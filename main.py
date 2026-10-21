@@ -206,7 +206,7 @@ async def on_member_remove(member):
         except:
             pass
 
-# --- نظام الصوت والأغاني (مطابق للشكل المطلوب) ---
+# --- نظام التشغيل المحدث بالاسم والرابط (مطابق للصورة) ---
 
 FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
 YDL_OPTIONS = {
@@ -236,7 +236,7 @@ async def join(interaction: discord.Interaction):
     except Exception as e:
         await interaction.edit_original_response(content=f"❌ خطأ صوتي: {str(e)}")
 
-@bot.tree.command(name="play", description="تشغيل أغنية أو مقطع صوتي بالاسم أو الرابط")
+@bot.tree.command(name="play", description="تشغيل أغنية بالاسم أو الرابط مع عرض العنوان")
 async def play(interaction: discord.Interaction, search: str):
     if not interaction.user.voice:
         await interaction.response.send_message("⚠️ يجب أن تكون متصلاً بروم صوتي أولاً!", ephemeral=True)
@@ -254,13 +254,19 @@ async def play(interaction: discord.Interaction, search: str):
     voice_client = interaction.guild.voice_client
 
     try:
+        # التعامل الذكي مع الروابط المباشرة أو البحث بالاسم
+        query = search if search.startswith("http") else f"ytsearch:{search}"
+        
         with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
-            info = ydl.extract_info(search, download=False)
+            info = ydl.extract_info(query, download=False)
             if 'entries' in info:
+                if not info['entries']:
+                    await interaction.followup.send("❌ لم يتم العثور على نتائج مطابقة بحثك.")
+                    return
                 info = info['entries'][0]
             
             url = info['url']
-            title = info.get('title', 'مقطع صوتي غير معروف')
+            title = info.get('title', 'مقطع صوتي')
 
         if voice_client.is_playing():
             voice_client.stop()
@@ -268,10 +274,10 @@ async def play(interaction: discord.Interaction, search: str):
         source = discord.FFmpegPCMAudio(url, **FFMPEG_OPTIONS)
         voice_client.play(source)
         
-        # الرسالة بالشكل الاحترافي المطلوب
+        # الرسالة بالشكل الاحترافي المطابق للصورة تماماً
         await interaction.followup.send(f"بدء تشغيل : **{title}**\n, بواسطة : {interaction.user.mention}.")
     except Exception as e:
-        await interaction.followup.send(f"❌ حدث خطأ أثناء تشغيل المقطع: تأكد من صحة الرابط أو الاسم.")
+        await interaction.followup.send(f"❌ حدث خطأ أثناء جلب التشغيل: تأكد من صحة الكلمة أو الرابط.")
 
 @bot.tree.command(name="stop", description="إيقاف الصوت وإبقاء البوت بالروم كـ AFK")
 @discord.app_commands.checks.has_permissions(administrator=True)
